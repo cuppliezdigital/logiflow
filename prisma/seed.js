@@ -2,8 +2,7 @@
 // DATA SEEDER AWAL LOGIFLOW
 // Menyiapkan data default untuk:
 // 1. Shift Kerja: Cuma 2 Shift ("Shift Pagi" dan "Shift Malam")
-// 2. Vendor Mitra Awal
-// 3. Contoh Plotingan Hari Ini
+// 2. 10 Vendor Mitra Utama Logistik
 // ============================================================================
 
 const { PrismaClient } = require('@prisma/client');
@@ -26,17 +25,29 @@ async function main() {
     }
   }
 
-  // 2. VENDOR MITRA AWAL
+  // 2. 10 VENDOR MITRA RESMI LOGIFLOW
   const vendors = [
-    { name: 'PT Sumber Makmur Mandiri', picName: 'Joko Susanto', phone: '081234567890' },
-    { name: 'PT Cipta Karya Logistik', picName: 'Dewi Lestari', phone: '081987654321' },
-    { name: 'PT Garda Mandiri Outsource', picName: 'Bambang Irawan', phone: '085678901234' },
+    { name: 'PT Maximus Integrasi Indonesia' },
+    { name: 'PT Sahabat Dua Muda' },
+    { name: 'PT BAL Logistik Internasional' },
+    { name: 'PT Esa Gemilang Sakti' },
+    { name: 'PT Dollar Information' },
+    { name: 'PT Majapahit Solusi Bersama' },
+    { name: 'PT Karya Megah Intemusa' },
+    { name: 'PT Solusi Mitra Pertama' },
+    { name: 'PT Dwi Rajendra Samudra' },
+    { name: 'PT Dewi Buana Mulia' },
   ];
 
   for (const v of vendors) {
     const existing = await prisma.vendor.findFirst({ where: { name: v.name } });
     if (!existing) {
-      await prisma.vendor.create({ data: v });
+      await prisma.vendor.create({
+        data: {
+          name: v.name,
+          status: 'ACTIVE',
+        },
+      });
       console.log(`+ Berhasil mendaftarkan vendor: ${v.name}`);
     }
   }
