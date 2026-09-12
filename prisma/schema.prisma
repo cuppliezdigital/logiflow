@@ -1,0 +1,98 @@
+// ============================================================================
+// KONFIGURASI DATABASE LOGIFLOW
+// Menggunakan database SQLite lokal dan Prisma ORM Client
+// ============================================================================
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------------------------------
+// 1. MODEL VENDOR (Penyedia Tenaga Kerja / Outsourcing)
+// Menyimpan informasi perusahaan penyalur buruh harian / pekerja lepas.
+// Dapat dikelola (tambah/edit/hapus) langsung dari UI aplikasi.
+// ----------------------------------------------------------------------------
+model Vendor {
+  id         String      @id @default(cuid())
+  name       String      // Nama perusahaan vendor (misal: PT Sumber Makmur Mandiri)
+  picName    String?     // Nama kontak person (PIC) dari vendor
+  phone      String?     // Nomor telepon / WhatsApp PIC vendor
+  status     String      @default("ACTIVE") // Status kemitraan: ACTIVE / INACTIVE
+  createdAt  DateTime    @default(now())
+  plotingans Plotingan[] // Relasi: Satu vendor bisa memiliki banyak jadwal plotingan
+}
+
+// ----------------------------------------------------------------------------
+// 2. MODEL SHIFT (Shift Operasional Kerja: Pagi & Malam)
+// Hanya ada 2 shift kerja: "Shift Pagi" dan "Shift Malam".
+// Jam kerja tidak dipatok kaku (bersifat fleksibel per kebutuhan gudang).
+// ----------------------------------------------------------------------------
+model Shift {
+  id         String      @id @default(cuid())
+  name       String      // Nama shift ("Shift Pagi" atau "Shift Malam")
+  startTime  String?     // Waktu mulai (opsional / fleksibel)
+  endTime    String?     // Waktu selesai (opsional / fleksibel)
+  createdAt  DateTime    @default(now())
+  plotingans Plotingan[] // Relasi: Satu shift bisa diisi oleh banyak plotingan vendor
+}
+
+// ----------------------------------------------------------------------------
+// 3. MODEL PLOTINGAN (Target Kebutuhan Manpower / H-1 Planning)
+// Rencana jumlah pekerja yang dipesan ke vendor untuk tanggal & shift tertentu.
+// ----------------------------------------------------------------------------
+model Plotingan {
+  id              String         @id @default(cuid())
+  date            String         // Tanggal kerja format YYYY-MM-DD (misal: 2026-09-12)
+  vendorId        String
+  vendor          Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  shiftId         String
+  shift           Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  status          String         @default("REGULAR") // Tipe kuota: "REGULAR" (rutin) vs "ADDITIONAL" (lembur/tambahan)
+  targetHeadcount Int            // Target jumlah orang yang harus dihadirkan vendor
+  workingHours    String?        // Jam kerja operasional (opsional/fleksibel, misal: "07:00 - 15:30" atau "Fleksibel")
+  notes           String?        // Catatan khusus (misal: "Khusus area sortir inbound")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  attendanceIn    AttendanceIn?  // Relasi: 1 Plotingan memiliki 1 data Absen Masuk
+
+  @@index([date])
+}
+
+// ----------------------------------------------------------------------------
+// 4. MODEL ATTENDANCE IN (Absen Masuk / Serah Terima Pasukan di Apel Pagi)
+// Mencatat jumlah orang fisik yang beneran hadir saat apel/briefing awal shift.
+// ----------------------------------------------------------------------------
+model AttendanceIn {
+  id              String         @id @default(cuid())
+  plotinganId     String         @unique
+  plotingan       Plotingan      @relation(fields: [plotinganId], references: [id], onDelete: Cascade)
+  checkInTime     DateTime       @default(now()) // Waktu serah terima absen masuk
+  actualHeadcount Int            // Jumlah orang riil yang hadir di barisan apel
+  photoInUrl      String?        // Link URL foto barisan apel (bukti serah terima)
+  notes           String?        // Catatan saat serah terima
+  createdAt       DateTime       @default(now())
+  attendanceOut   AttendanceOut? // Relasi: 1 Absen Masuk memiliki 1 data Absen Pulang
+}
+
+// ----------------------------------------------------------------------------
+// 5. MODEL ATTENDANCE OUT (Absen Pulang, Tumbang & Audit Integritas)
+// Mencatat orang pulang utuh vs orang tumbang sakit, serta deteksi pekerja kabur.
+// ----------------------------------------------------------------------------
+model AttendanceOut {
+  id               String       @id @default(cuid())
+  attendanceInId   String       @unique
+  attendanceIn     AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
+  checkOutTime     DateTime     @default(now()) // Waktu checkout/apel selesai shift
+  pulangHeadcount  Int          // Jumlah orang yang pulang utuh sampai jam kerja selesai
+  tumbangHeadcount Int          @default(0)     // Jumlah orang yang sakit/cedera di jam kerja
+  photoPulangUrl   String?      // Link URL foto barisan saat pulang
+  photoTumbangUrl  String?      // Link URL foto surat sakit / bukti penanganan klinik P3K
+  tumbangNotes     String?      // Rincian penyebab tumbang (misal: kram otot di dock 4)
+  isBalanced       Boolean      @default(true)  // True jika Masuk == Pulang + Tumbang
+  selisihCount     Int          @default(0)     // Selisih orang kabur: Masuk - (Pulang + Tumbang)
+  createdAt        DateTime     @default(now())
+}

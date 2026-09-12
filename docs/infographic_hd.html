@@ -1,0 +1,313 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Alur Sistem Monitoring Manpower Logistik</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #f8fafc;
+      padding: 30px;
+      width: 1400px;
+      color: #0f172a;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 24px 30px;
+      border-radius: 16px;
+      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #38bdf8;
+      margin-bottom: 4px;
+    }
+    .header p {
+      color: #94a3b8;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .badge-logistik {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Grid 4 Fase */
+    .grid-phases {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+
+    .phase-card {
+      background: #ffffff;
+      border-radius: 14px;
+      border: 2px solid #e2e8f0;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phase-card.p1 { border-color: #3b82f6; }
+    .phase-card.p2 { border-color: #f59e0b; }
+    .phase-card.p3 { border-color: #ef4444; }
+    .phase-card.p4 { border-color: #10b981; }
+
+    .phase-header {
+      padding: 14px 16px;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .p1 .phase-header { background: #2563eb; }
+    .p2 .phase-header { background: #d97706; }
+    .p3 .phase-header { background: #dc2626; }
+    .p4 .phase-header { background: #059669; }
+
+    .phase-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .step-item.highlight {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+    .step-item.alert {
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+    .step-item.success {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .step-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .step-desc {
+      font-size: 11.5px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    /* Key Formulas & Logic Bar */
+    .logic-bar {
+      background: #ffffff;
+      border: 2px dashed #cbd5e1;
+      border-radius: 14px;
+      padding: 18px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .formula-card {
+      background: #f1f5f9;
+      border-radius: 10px;
+      padding: 14px 18px;
+      border-left: 5px solid #0284c7;
+    }
+    .formula-card.red {
+      border-left-color: #dc2626;
+    }
+    .formula-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .formula-code {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #0369a1;
+      background: #e0f2fe;
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin: 4px 0;
+    }
+    .formula-card.red .formula-code {
+      color: #991B1B;
+      background: #fee2e2;
+    }
+    .formula-desc {
+      font-size: 11.5px;
+      color: #475569;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>SISTEM MONITORING MANPOWER & FULFILLMENT LOGISTIK</h1>
+      <p>Standard Operating Procedure (SOP): Dari Permintaan Vendor Sampai Validasi Tagihan Invoice</p>
+    </div>
+    <div class="badge-logistik">Warehouse & Vendor Control</div>
+  </div>
+
+  <div class="grid-phases">
+    
+    <!-- FASE 1 -->
+    <div class="phase-card p1">
+      <div class="phase-header">
+        <span>01. PLOTINGAN (H-1)</span>
+      </div>
+      <div class="phase-body">
+        <div class="step-item">
+          <div class="step-title">📋 Input Kebutuhan</div>
+          <div class="step-desc">Supervisor Logistik menentukan target kebutuhan orang sebelum shift dimulai.</div>
+        </div>
+        <div class="step-item highlight">
+          <div class="step-title">🏷️ Data yang Diset:</div>
+          <div class="step-desc">
+            &bull; Tanggal Kerja<br>
+            &bull; Nama Vendor Penyalur<br>
+            &bull; Shift Kerja (1, 2, atau 3)<br>
+            &bull; Status: <b>Regular</b> / <b>Add</b><br>
+            &bull; <b>Target Headcount (Orang)</b>
+          </div>
+        </div>
+        <div class="step-item success">
+          <div class="step-title">🔒 Kunci Data Target</div>
+          <div class="step-desc">Data tersimpan sebagai dasar acuan KPI vendor & batas kuota kehadiran.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 2 -->
+    <div class="phase-card p2">
+      <div class="phase-header">
+        <span>02. ABSEN MASUK</span>
+      </div>
+      <div class="phase-body">
+        <div class="step-item">
+          <div class="step-title">🚚 Vendor Tiba di Hub</div>
+          <div class="step-desc">Pasukan pekerja tiba di gudang/hub logistik untuk apel dan briefing kerja.</div>
+        </div>
+        <div class="step-item highlight">
+          <div class="step-title">📝 Handover Awal Shift:</div>
+          <div class="step-desc">
+            &bull; Checker pilih Plotingan terkait<br>
+            &bull; Input <b>Total Orang Masuk</b><br>
+            &bull; <b>Foto Barisan / Briefing</b><br>
+            &bull; Status: Regular vs Add
+          </div>
+        </div>
+        <div class="step-item success">
+          <div class="step-title">⚡ Hitung Fulfillment Awal</div>
+          <div class="step-desc">Sistem otomatis menghitung rasio kedatangan: apakah vendor bawa orang sesuai target.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 3 -->
+    <div class="phase-card p3">
+      <div class="phase-header">
+        <span>03. ABSEN PULANG & TUMBANG</span>
+      </div>
+      <div class="phase-body">
+        <div class="step-item">
+          <div class="step-title">🏁 Shift Selesai</div>
+          <div class="step-desc">Verifikasi orang di akhir shift untuk memastikan siapa yang selesai penuh.</div>
+        </div>
+        <div class="step-item alert">
+          <div class="step-title">🚑 Penanganan TUMBANG:</div>
+          <div class="step-desc">
+            &bull; Input <b>Jumlah Orang Tumbang</b><br>
+            &bull; <b>Foto Bukti Tumbang</b> (P3K/Sakit)<br>
+            &bull; Input <b>Total Orang Pulang</b><br>
+            &bull; Foto Barisan Pulang Selesai
+          </div>
+        </div>
+        <div class="step-item highlight">
+          <div class="step-title">⚖️ Validasi Otomatis:</div>
+          <div class="step-desc"><b>Masuk = Pulang + Tumbang</b>. Jika ada selisih, dicatat sebagai <i>Kabur/Mangkir</i>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FASE 4 -->
+    <div class="phase-card p4">
+      <div class="phase-header">
+        <span>04. REPORT & BILLING</span>
+      </div>
+      <div class="phase-body">
+        <div class="step-item">
+          <div class="step-title">📊 Dashboard Live</div>
+          <div class="step-desc">Monitoring real-time jumlah manpower aktif di lapangan per vendor & per shift.</div>
+        </div>
+        <div class="step-item highlight">
+          <div class="step-title">📈 Laporan Penggunaan MP:</div>
+          <div class="step-desc">
+            &bull; Rekap Harian, Mingguan, Bulanan<br>
+            &bull; Breakdown Regular vs Additional<br>
+            &bull; Scorecard KPI Fulfillment Vendor
+          </div>
+        </div>
+        <div class="step-item success">
+          <div class="step-title">💰 Export Excel Tagihan</div>
+          <div class="step-desc">Dasar resmi Finance untuk validasi dan pembayaran invoice vendor (anti-mark up).</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="logic-bar">
+    <div class="formula-card">
+      <div class="formula-title">🎯 Rumus KPI Fulfillment Vendor</div>
+      <div class="formula-code">Fulfillment (%) = (Total Orang Masuk / Target Plotingan) &times; 100%</div>
+      <div class="formula-desc">Jika gudang minta 50 orang tapi vendor cuma bawa 40 orang &rarr; Fulfillment 80% (Kena SP/Penalti).</div>
+    </div>
+
+    <div class="formula-card red">
+      <div class="formula-title">🔍 Kontrol Fisik & Validasi Tumbang</div>
+      <div class="formula-code">Total Masuk = Total Pulang Selesai + Total Orang Tumbang</div>
+      <div class="formula-desc">Mencegah kebocoran jam kerja (manhour) akibat pekerja yang pulang duluan / tidak kuat shift kerja.</div>
+    </div>
+  </div>
+
+</body>
+</html>

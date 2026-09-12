@@ -1,0 +1,117 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 40px;
+      background: #ffffff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: inline-block;
+      min-width: 900px;
+    }
+    .header-box {
+      text-align: center;
+      margin-bottom: 30px;
+      border-bottom: 3px solid #0284c7;
+      padding-bottom: 15px;
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: 0.5px;
+    }
+    p {
+      margin: 0;
+      color: #475569;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+    /* Make text inside nodes bigger and sharper */
+    .node text {
+      font-size: 15px !important;
+      font-weight: 600 !important;
+    }
+    .cluster-label text {
+      font-size: 16px !important;
+      font-weight: 800 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-box">
+    <h1>SISTEM MONITORING MANPOWER & FULFILLMENT VENDOR LOGISTIK</h1>
+    <p>Alur Standar Operasional: Plotingan Kebutuhan &rarr; Absen Masuk &rarr; Absen Pulang / Tumbang &rarr; Rekap Billing</p>
+  </div>
+
+  <div class="mermaid">
+flowchart TD
+    classDef fase1 fill:#EFF6FF,stroke:#2563EB,stroke-width:2.5px,color:#1E40AF;
+    classDef fase2 fill:#F0FDF4,stroke:#16A34A,stroke-width:2.5px,color:#166534;
+    classDef fase3 fill:#FFFBEB,stroke:#D97706,stroke-width:2.5px,color:#92400E;
+    classDef fase4 fill:#F5F3FF,stroke:#7C3AED,stroke-width:2.5px,color:#5B21B6;
+
+    classDef process fill:#FFFFFF,stroke:#475569,stroke-width:1.8px,color:#0F172A;
+    classDef action fill:#FEF3C7,stroke:#B45309,stroke-width:2px,color:#78350F;
+    classDef finish fill:#DCFCE7,stroke:#15803D,stroke-width:2px,color:#14532D;
+    classDef danger fill:#FEE2E2,stroke:#DC2626,stroke-width:2px,color:#991B1B;
+
+    subgraph F1 ["FASE 1: PLOTINGAN (H-1 / Sebelum Shift Dimulai)"]
+        A["1. Supervisor Gudang Buka Modul Plotingan"]:::process --> B["2. Input Target: Tanggal, Vendor, Shift,<br/>Status (Regular / Additional), & Jumlah Orang"]:::action
+        B --> C[("3. Data Plotingan Terkunci sebagai Target Resmi")]:::finish
+    end
+
+    subgraph F2 ["FASE 2: BRIEFING & ABSEN MASUK (Awal Shift)"]
+        D["4. Vendor Datang Membawa Pasukan Pekerja"]:::process --> E["5. Checker / Mandor Buka Form Absen Masuk"]:::process
+        E --> F["6. Pilih Data Plotingan Terkait"]:::process
+        F --> G["7. Input: Total Orang Masuk + Upload Foto Apel/Briefing"]:::action
+        G --> H["8. Sistem Hitung Otomatis % Fulfillment Awal"]:::finish
+    end
+
+    subgraph F3 ["FASE 3: CLOSING & ABSEN PULANG (Akhir Shift)"]
+        I["9. Jam Kerja Shift Selesai"]:::process --> J["10. Mandor / Checker Buka Form Absen Pulang"]:::process
+        J --> K["11. Input Total Orang Pulang Selesai Full Shift"]:::process
+        J --> L["12. Input Jumlah Orang TUMBANG + Foto Bukti Surat/P3K"]:::danger
+        K & L --> M{"13. Validasi Sistem Otomatis:<br/>Masuk = Pulang + Tumbang?"}:::action
+        M -->|Sesuai| N["14. Shift Closed: Data Terkunci Aman"]:::finish
+        M -->|Ada Selisih| O["15. Catat Selisih: Pekerja Kabur / Mangkir Tanpa Izin"]:::danger
+    end
+
+    subgraph F4 ["FASE 4: REPORT, KPI & BILLING INVOICE (Management & Finance)"]
+        N & O --> P["16. Dashboard Live Monitoring Headcount"]:::process
+        P --> Q["17. Laporan Penggunaan MP (Harian, Mingguan, Bulanan)"]:::action
+        P --> R["18. Evaluasi KPI Fulfillment per Vendor (Penalti / Reward)"]:::action
+        P --> S["19. Export Rekap Excel Validasi Pembayaran Invoice Vendor"]:::finish
+    end
+
+    C -->|Referensi Target| F
+    H -->|Referensi Masuk| J
+
+    F1:::fase1
+    F2:::fase2
+    F3:::fase3
+    F4:::fase4
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      flowchart: {
+        curve: 'basis',
+        nodeSpacing: 45,
+        rankSpacing: 45
+      }
+    });
+  </script>
+</body>
+</html>

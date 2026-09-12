@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 30px;
+      background: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: inline-block;
+    }
+    h2 {
+      text-align: center;
+      color: #0369a1;
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      letter-spacing: 0.5px;
+    }
+    p.subtitle {
+      text-align: center;
+      color: #64748b;
+      margin: 0 0 25px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h2>ALUR SISTEM MONITORING & FULFILLMENT MANPOWER LOGISTIK</h2>
+  <p class="subtitle">Modul: Plotingan, Absen Masuk, Absen Pulang, Tumbang, & Rekap Billing Invoice</p>
+  <div class="mermaid">
+flowchart TD
+    classDef fase fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1,font-weight:bold;
+    classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
+    classDef action fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f,font-weight:600;
+    classDef finish fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d,font-weight:600;
+    classDef alert fill:#fee2e2,stroke:#dc2626,stroke-width:1.5px,color:#7f1d1d;
+
+    subgraph F1 ["FASE 1: PLOTINGAN (H-1 / Sebelum Shift Dimulai)"]
+        A["Supervisor Logistik Buka Menu Plotingan"]:::process --> B["Input: Tanggal, Vendor, Shift, Status (Reg / Add) & Target Orang"]:::action
+        B --> C[("Data Plotingan Tersimpan sebagai Target Kebutuhan")]:::finish
+    end
+
+    subgraph F2 ["FASE 2: BRIEFING & ABSEN MASUK (Awal Shift)"]
+        D["Vendor Datang Membawa Pasukan Pekerja"]:::process --> E["Checker / Mandor Buka Form Absen Masuk"]:::action
+        E --> F["Pilih Data Plotingan Terkait"]:::process
+        F --> G["Input: Total Orang Hadir + Ambil Foto Barisan/Briefing"]:::action
+        G --> H["Sistem Hitung Otomatis Fulfillment Awal %"]:::finish
+    end
+
+    subgraph F3 ["FASE 3: CLOSING & ABSEN PULANG (Akhir Shift)"]
+        I["Shift Kerja Selesai"]:::process --> J["Checker Buka Form Absen Pulang"]:::action
+        J --> K["Input: Total Orang Pulang Selesai Full Shift"]:::process
+        J --> L["Input: Jumlah Orang TUMBANG + Foto Bukti Sakit/P3K"]:::alert
+        K & L --> M{"Validasi Sistem:<br/>Total Masuk = Pulang + Tumbang?"}:::action
+        M -->|Sesuai| N["Shift Closed / Data Terkunci Aman"]:::finish
+        M -->|Selisih/Kabur| O["Catat Selisih / Pekerja Kabur Tanpa Izin"]:::alert
+    end
+
+    subgraph F4 ["FASE 4: REPORT & REKAP BILLING (Management / Finance)"]
+        N & O --> P["Dashboard Live Monitoring Logistik"]:::process
+        P --> Q["Laporan Penggunaan MP (Harian, Mingguan, Bulanan)"]:::action
+        P --> R["Report Fulfillment Vendor (KPI & Scoring Vendor)"]:::action
+        P --> S["Export Excel Rekap Validasi Tagihan / Invoice"]:::finish
+    end
+
+    C -.-> F
+    H -.-> J
+  </div>
+  <script>
+    mermaid.initialize({ 
+      startOnLoad: true, 
+      theme: 'default',
+      themeVariables: {
+        fontSize: '15px'
+      }
+    });
+  </script>
+</body>
+</html>
