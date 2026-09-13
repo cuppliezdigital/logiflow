@@ -1043,16 +1043,6 @@ export default function AbsenPulangTab({
                         )}
                       </div>
                     ))}
-
-                    {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
-                    <button
-                      type="button"
-                      onClick={() => handleAddPulangRegSlot()}
-                      className="w-full py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white hover:bg-blue-50 text-blue-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah Bagian Regular</span>
-                    </button>
                   </div>
                 )}
               </div>
@@ -1208,16 +1198,6 @@ export default function AbsenPulangTab({
                           )}
                         </div>
                       ))}
-
-                      {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
-                      <button
-                        type="button"
-                        onClick={() => handleAddPulangAddSlot()}
-                        className="w-full py-2 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah Bagian Additional</span>
-                      </button>
                     </div>
                   )}
                 </div>
