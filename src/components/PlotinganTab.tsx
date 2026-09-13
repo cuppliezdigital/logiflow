@@ -2,12 +2,11 @@
 
 // ============================================================================
 // KOMPONEN TAB 1: PLOTINGAN TARGET MANPOWER (H-1 PLANNING)
-// Fitur:
-// 1. Kartu Ringkasan Kebutuhan Total, Regular, & Additional
-// 2. Tombol "+ Kelola Vendor" untuk Menambah/Mengubah Mitra Langsung dari UI
-// 3. Pilihan Shift Kerja Sederhana: Shift Pagi (☀️) vs Shift Malam (🌙)
-// 4. Input Jam Kerja Fleksibel / Bebas (Opsional)
-// 5. Tabel Daftar Plotingan & Modal Tambah / Edit
+// Fitur Baru:
+// 1. Dropdown pilihan vendor dengan warna teks kontras tinggi (jelas terbaca).
+// 2. 1 Form langsung mencakup Target Regular & Target Additional sekaligus.
+// 3. Pilihan Shift Pagi (☀️) vs Shift Malam (🌙) & Jam Kerja Fleksibel.
+// 4. Tabel Daftar Plotingan rapi: 1 baris per vendor per shift.
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -22,7 +21,8 @@ import {
   X,
   Sun,
   Moon,
-  Settings
+  Settings,
+  Layers
 } from 'lucide-react';
 import { createPlotingan, updatePlotingan, deletePlotingan } from '@/app/actions';
 import VendorModal from '@/components/VendorModal';
@@ -58,23 +58,23 @@ export default function PlotinganTab({
   // Indikator loading saat form sedang dikirim ke server
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form State untuk input data plotingan
+  // Form State untuk input data plotingan terpadu
   const [vendorId, setVendorId] = useState(vendors[0]?.id || '');
   const [shiftId, setShiftId] = useState(shifts[0]?.id || '');
-  const [status, setStatus] = useState('REGULAR'); // REGULAR atau ADDITIONAL
-  const [targetHeadcount, setTargetHeadcount] = useState(20);
+  
+  // Dua kuota sekaligus: Regular dan Additional
+  const [targetRegular, setTargetRegular] = useState<number>(20);
+  const [targetAdditional, setTargetAdditional] = useState<number>(0);
+
   const [workingHours, setWorkingHours] = useState(''); // Jam kerja bebas/opsional
   const [notes, setNotes] = useState('');
 
   // --------------------------------------------------------------------------
   // KALKULASI RINGKASAN DATA
   // --------------------------------------------------------------------------
-  // Total keseluruhan orang yang dibutuhkan pada tanggal ini
   const totalTarget = plotingans.reduce((sum, p) => sum + p.targetHeadcount, 0);
-  // Total kebutuhan kuota reguler (rutin harian)
-  const totalReg = plotingans.filter(p => p.status === 'REGULAR').reduce((sum, p) => sum + p.targetHeadcount, 0);
-  // Total kebutuhan kuota additional (tambahan lembur/peak day)
-  const totalAdd = plotingans.filter(p => p.status === 'ADDITIONAL').reduce((sum, p) => sum + p.targetHeadcount, 0);
+  const totalReg = plotingans.reduce((sum, p) => sum + (p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0)), 0);
+  const totalAdd = plotingans.reduce((sum, p) => sum + (p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0)), 0);
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
@@ -85,8 +85,8 @@ export default function PlotinganTab({
     setEditingItem(null);
     setVendorId(vendors[0]?.id || '');
     setShiftId(shifts[0]?.id || '');
-    setStatus('REGULAR');
-    setTargetHeadcount(20);
+    setTargetRegular(20);
+    setTargetAdditional(0);
     setWorkingHours('');
     setNotes('');
     setIsModalOpen(true);
@@ -97,8 +97,8 @@ export default function PlotinganTab({
     setEditingItem(item);
     setVendorId(item.vendorId);
     setShiftId(item.shiftId);
-    setStatus(item.status);
-    setTargetHeadcount(item.targetHeadcount);
+    setTargetRegular(item.targetRegular ?? item.targetHeadcount);
+    setTargetAdditional(item.targetAdditional ?? 0);
     setWorkingHours(item.workingHours || '');
     setNotes(item.notes || '');
     setIsModalOpen(true);
@@ -121,15 +121,19 @@ export default function PlotinganTab({
       formData.append('date', selectedDate);
       formData.append('vendorId', vendorId);
       formData.append('shiftId', shiftId);
-      formData.append('status', status);
-      formData.append('targetHeadcount', targetHeadcount.toString());
+      formData.append('targetRegular', targetRegular.toString());
+      formData.append('targetAdditional', targetAdditional.toString());
       formData.append('workingHours', workingHours);
       formData.append('notes', notes);
 
       if (editingItem) {
         await updatePlotingan(editingItem.id, formData);
       } else {
-        await createPlotingan(formData);
+        const res = await createPlotingan(formData);
+        if (res && !res.success) {
+          alert(res.error || 'Gagal membuat plotingan.');
+          return;
+        }
       }
 
       setIsModalOpen(false);
@@ -140,6 +144,8 @@ export default function PlotinganTab({
       setIsSubmitting(false);
     }
   };
+
+  const totalModalTarget = targetRegular + targetAdditional;
 
   return (
     <div className="space-y-6">
@@ -190,7 +196,7 @@ export default function PlotinganTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Daftar Plotingan ({selectedDate})</h2>
-          <p className="text-xs text-slate-500">Target kebutuhan orang yang diset untuk vendor pada tanggal ini.</p>
+          <p className="text-xs text-slate-500">1 baris per vendor mencakup kuota Regular dan Additional sekaligus.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -216,14 +222,14 @@ export default function PlotinganTab({
         </div>
       </div>
 
-      {/* 3. TABEL DAFTAR PLOTINGAN */}
+      {/* 3. TABEL DAFTAR PLOTINGAN (1 Baris per Vendor per Shift) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {plotingans.length === 0 ? (
           <div className="p-12 text-center">
             <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-base font-bold text-slate-700">Belum Ada Plotingan di Tanggal Ini</p>
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Silakan klik tombol "Tambah Plotingan" untuk menentukan target jumlah orang untuk shift dan vendor.
+              Silakan klik tombol "Tambah Plotingan" untuk menentukan target kuota regular & additional per vendor.
             </p>
           </div>
         ) : (
@@ -233,9 +239,8 @@ export default function PlotinganTab({
                 <tr>
                   <th className="py-3.5 px-4">Nama Vendor</th>
                   <th className="py-3.5 px-4">Shift & Jam Kerja</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-center">Target</th>
-                  <th className="py-3.5 px-4 text-center">Realisasi Hadir</th>
+                  <th className="py-3.5 px-4 text-center">Rincian Kuota Target</th>
+                  <th className="py-3.5 px-4 text-center">Realisasi Hadir Fisik</th>
                   <th className="py-3.5 px-4">Catatan</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
@@ -243,8 +248,13 @@ export default function PlotinganTab({
               <tbody className="divide-y divide-slate-100">
                 {plotingans.map((p) => {
                   const masuk = p.attendanceIn?.actualHeadcount;
+                  const masukReg = p.attendanceIn?.actualRegular ?? 0;
+                  const masukAdd = p.attendanceIn?.actualAdditional ?? 0;
                   const fulfillment = masuk !== undefined ? Math.round((masuk / p.targetHeadcount) * 100) : null;
                   const isPagi = p.shift.name.toLowerCase().includes('pagi');
+
+                  const regCount = p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0);
+                  const addCount = p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0);
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -252,7 +262,7 @@ export default function PlotinganTab({
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-slate-400" />
-                          <span className="font-bold text-slate-900">{p.vendor.name}</span>
+                          <span className="font-extrabold text-slate-900">{p.vendor.name}</span>
                         </div>
                         {p.vendor.picName && (
                           <p className="text-xs text-slate-400 mt-0.5 ml-6">PIC: {p.vendor.picName} ({p.vendor.phone || '-'})</p>
@@ -279,35 +289,38 @@ export default function PlotinganTab({
                         )}
                       </td>
 
-                      {/* Status Kuota: Regular vs Additional */}
-                      <td className="py-4 px-4">
-                        <span
-                          className={`inline-block px-2.5 py-1 text-xs font-bold rounded-lg border ${
-                            p.status === 'REGULAR'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}
-                        >
-                          {p.status === 'REGULAR' ? 'Regular' : 'Additional'}
-                        </span>
-                      </td>
-
-                      {/* Target Headcount yang Diminta */}
-                      <td className="py-4 px-4 text-center font-extrabold text-base text-slate-900">
-                        {p.targetHeadcount}
+                      {/* Rincian Kuota Target: Regular vs Additional vs Total */}
+                      <td className="py-4 px-4 text-center">
+                        <div className="inline-flex flex-col items-center">
+                          <span className="font-black text-base text-slate-900">
+                            {p.targetHeadcount} <span className="text-xs font-normal text-slate-500">Orang Total</span>
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                              Reg: {regCount}
+                            </span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                              Add: {addCount}
+                            </span>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Realisasi Kehadiran Fisik (Absen Masuk) */}
                       <td className="py-4 px-4 text-center">
                         {masuk !== undefined ? (
                           <div className="inline-flex flex-col items-center">
-                            <span className="font-bold text-emerald-600 text-sm">
+                            <span className="font-extrabold text-emerald-600 text-sm">
                               {masuk} Org ({fulfillment}%)
                             </span>
-                            <span className="text-[10px] text-slate-400">Tercatat Masuk</span>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500">
+                              <span>Reg: {masukReg}</span>
+                              <span>&bull;</span>
+                              <span>Add: {masukAdd}</span>
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-medium">
+                          <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-medium">
                             Menunggu Masuk
                           </span>
                         )}
@@ -346,7 +359,7 @@ export default function PlotinganTab({
         )}
       </div>
 
-      {/* 4. MODAL FORM: TAMBAH ATAU EDIT PLOTINGAN */}
+      {/* 4. MODAL FORM: TAMBAH ATAU EDIT PLOTINGAN (TERPADU REG + ADD) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150">
@@ -365,18 +378,18 @@ export default function PlotinganTab({
 
             {/* Form Input */}
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-              {/* Tanggal (Read-only sesuai tanggal aktif) */}
+              {/* Tanggal */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tanggal</label>
                 <input
                   type="date"
                   value={selectedDate}
                   disabled
-                  className="w-full bg-slate-100 text-slate-500 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-medium"
+                  className="w-full bg-slate-100 text-slate-600 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold"
                 />
               </div>
 
-              {/* Pilihan Vendor & Tombol Cepat Tambah Vendor */}
+              {/* Pilihan Vendor (DENGAN WARNA TEKS GELAP KONTRAS TINGGI) */}
               {!editingItem && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -392,10 +405,16 @@ export default function PlotinganTab({
                   <select
                     value={vendorId}
                     onChange={(e) => setVendorId(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border-2 border-slate-300 bg-white rounded-xl px-3.5 py-2.5 text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
                   >
                     {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
+                      <option 
+                        key={v.id} 
+                        value={v.id}
+                        className="text-slate-900 bg-white font-bold py-1.5"
+                      >
+                        {v.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -414,7 +433,7 @@ export default function PlotinganTab({
                           key={s.id}
                           type="button"
                           onClick={() => setShiftId(s.id)}
-                          className={`py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          className={`py-2.5 px-3 rounded-xl border-2 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                             isSelected
                               ? isPagi
                                 ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
@@ -431,7 +450,7 @@ export default function PlotinganTab({
                 </div>
               )}
 
-              {/* Input Jam Kerja Bebas / Fleksibel (Opsional) */}
+              {/* Input Jam Kerja Bebas / Fleksibel */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Jam Kerja (Opsional / Bebas)
@@ -443,56 +462,55 @@ export default function PlotinganTab({
                     value={workingHours}
                     onChange={(e) => setWorkingHours(e.target.value)}
                     placeholder="Misal: 07:00 - 15:30 atau Fleksibel"
-                    className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Boleh dikosongkan jika jam kerja tidak tentu.
-                </span>
               </div>
 
-              {/* Pemilih Tipe Status (Regular vs Additional) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Status Tenaga Kerja</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setStatus('REGULAR')}
-                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                      status === 'REGULAR'
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Regular (Reg)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus('ADDITIONAL')}
-                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                      status === 'ADDITIONAL'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Additional (Add)
-                  </button>
+              {/* DUA INPUT KUOTA SEKALIGUS: REGULAR & ADDITIONAL */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-blue-600" />
+                    Target Kebutuhan Orang
+                  </span>
+                  <span className="text-xs font-black text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
+                    Total: {totalModalTarget} Org
+                  </span>
                 </div>
-              </div>
 
-              {/* Target Headcount (Jumlah Orang) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Jumlah Plotingan (Target Orang)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={targetHeadcount}
-                  onChange={(e) => setTargetHeadcount(parseInt(e.target.value) || 0)}
-                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Target Regular */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-blue-700 uppercase mb-1">
+                      1. Target Regular
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={targetRegular}
+                      onChange={(e) => setTargetRegular(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-3 py-2 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Kebutuhan rutin</span>
+                  </div>
+
+                  {/* Target Additional */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-700 uppercase mb-1">
+                      2. Target Additional
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={targetAdditional}
+                      onChange={(e) => setTargetAdditional(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Lembur / Peak</span>
+                  </div>
+                </div>
               </div>
 
               {/* Catatan Opsional */}
@@ -502,13 +520,13 @@ export default function PlotinganTab({
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Misal: Tambahan tim sortation inbound..."
-                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Misal: 10 orang additional khusus area unloading..."
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               {/* Tombol Aksi Form */}
-              <div className="flex gap-3 pt-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

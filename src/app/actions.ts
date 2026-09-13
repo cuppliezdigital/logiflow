@@ -5,10 +5,10 @@
 // Berisi seluruh fungsi backend operasi database:
 // 1. Kelola Vendor (CRUD Vendor Langsung dari UI)
 // 2. Master Data (Vendor Aktif & Shift Pagi/Malam)
-// 3. Plotingan Target H-1 (Termasuk Jam Kerja Fleksibel)
-// 4. Absen Masuk & Serah Terima Pasukan (Upload Foto Apel)
-// 5. Absen Pulang, Tumbang & Audit Integritas Otomatis
-// 6. Rekapitulasi Laporan KPI Operasional
+// 3. Plotingan Terpadu: 1 Vendor mencakup kuota REGULAR & ADDITIONAL sekaligus
+// 4. Absen Masuk: Input kehadiran & 2 slot foto (Reguler & Additional)
+// 5. Absen Pulang: Input kepulangan & audit integritas terpisah per kategori
+// 6. Rekapitulasi Laporan KPI & Integrasi Tagihan
 // ============================================================================
 
 import { prisma } from '@/lib/prisma';
@@ -20,7 +20,7 @@ import path from 'path';
 // HELPER: Menyimpan File Gambar yang Diunggah ke Folder public/uploads
 // ----------------------------------------------------------------------------
 /**
- * Fungsi pembantu untuk memproses file upload (foto apel, foto bukti tumbang).
+ * Fungsi pembantu untuk memproses file upload (foto apel masuk reg/add, checkout, klinik).
  * File disimpan di folder `public/uploads/` dengan nama unik agar tidak bentrok.
  * Mengembalikan path URL lokal (misal: /uploads/1712345678-abc.jpg).
  */
@@ -50,7 +50,6 @@ async function saveUploadedFile(file: File | null): Promise<string | null> {
 // ----------------------------------------------------------------------------
 /**
  * Menambahkan Vendor Baru ke Database.
- * Diinput oleh supervisor/admin melalui modal "Kelola Vendor".
  */
 export async function createVendor(formData: FormData) {
   const name = (formData.get('name') as string)?.trim();
@@ -123,10 +122,6 @@ export async function deleteVendor(id: string) {
 // ----------------------------------------------------------------------------
 // 2. MASTER DATA: Mengambil Data Vendor Aktif dan Shift Kerja
 // ----------------------------------------------------------------------------
-/**
- * Mengambil daftar Vendor yang berstatus 'ACTIVE' dan seluruh Shift (Shift Pagi & Shift Malam).
- * Digunakan sebagai pilihan dropdown saat membuat / mengedit plotingan.
- */
 export async function getMasterData() {
   const [vendors, shifts] = await Promise.all([
     prisma.vendor.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } }),
@@ -136,11 +131,10 @@ export async function getMasterData() {
 }
 
 // ----------------------------------------------------------------------------
-// 3. MODUL PLOTINGAN: Mengelola Target Manpower H-1 & Jam Kerja Fleksibel
+// 3. MODUL PLOTINGAN: 1 Entri per Vendor mencakup REGULAR & ADDITIONAL Sekaligus
 // ----------------------------------------------------------------------------
 /**
  * Mengambil daftar plotingan berdasarkan tanggal tertentu.
- * Sudah meng-include data relasi vendor, shift, attendanceIn, dan attendanceOut.
  */
 export async function getPlotingans(date?: string) {
   const targetDate = date || new Date().toISOString().split('T')[0];
@@ -161,21 +155,42 @@ export async function getPlotingans(date?: string) {
 }
 
 /**
- * Menyimpan data plotingan baru (permintaan target headcount ke vendor).
- * Termasuk kolom workingHours (jam kerja bebas/opsional).
+ * Menyimpan data plotingan baru.
+ * 1 Vendor pada 1 Shift langsung menginput target kuota REGULAR dan ADDITIONAL.
  */
 export async function createPlotingan(formData: FormData) {
   const date = formData.get('date') as string;
   const vendorId = formData.get('vendorId') as string;
   const shiftId = formData.get('shiftId') as string;
-  const status = (formData.get('status') as string) || 'REGULAR';
-  const targetHeadcount = parseInt(formData.get('targetHeadcount') as string, 10) || 0;
+  
+  // Ambil kuota regular & additional
+  const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
+  const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
+  // Total target otomatis dijumlahkan
+  const targetHeadcount = targetRegular + targetAdditional;
+
   const workingHours = (formData.get('workingHours') as string)?.trim() || null;
   const notes = (formData.get('notes') as string) || null;
 
-  // Validasi input wajib
+  // Validasi: Harus pilih vendor, shift, dan total kuota minimal 1 orang
   if (!date || !vendorId || !shiftId || targetHeadcount <= 0) {
-    return { success: false, error: 'Data plotingan tidak lengkap atau target kurang dari 1.' };
+    return { success: false, error: 'Target kuota minimal 1 orang (baik Regular maupun Additional).' };
+  }
+
+  // Cek apakah vendor ini sudah diplot pada shift dan tanggal yang sama
+  const existing = await prisma.plotingan.findFirst({
+    where: {
+      date,
+      vendorId,
+      shiftId,
+    },
+  });
+
+  if (existing) {
+    return { 
+      success: false, 
+      error: 'Vendor ini sudah memiliki plotingan pada shift ini. Silakan gunakan tombol Edit untuk mengubah kuota.' 
+    };
   }
 
   await prisma.plotingan.create({
@@ -183,8 +198,10 @@ export async function createPlotingan(formData: FormData) {
       date,
       vendorId,
       shiftId,
-      status,
+      targetRegular,
+      targetAdditional,
       targetHeadcount,
+      status: 'MIXED',
       workingHours,
       notes,
     },
@@ -195,23 +212,25 @@ export async function createPlotingan(formData: FormData) {
 }
 
 /**
- * Memperbarui target kuota, status, jam kerja, atau catatan plotingan yang sudah ada.
+ * Memperbarui data target regular & additional pada plotingan yang sudah ada.
  */
 export async function updatePlotingan(id: string, formData: FormData) {
-  const targetHeadcount = parseInt(formData.get('targetHeadcount') as string, 10) || 0;
-  const status = formData.get('status') as string;
+  const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
+  const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
+  const targetHeadcount = targetRegular + targetAdditional;
   const workingHours = (formData.get('workingHours') as string)?.trim() || null;
   const notes = (formData.get('notes') as string) || null;
 
   if (targetHeadcount <= 0) {
-    return { success: false, error: 'Target headcount harus lebih dari 0.' };
+    return { success: false, error: 'Total target headcount harus lebih dari 0.' };
   }
 
   await prisma.plotingan.update({
     where: { id },
     data: {
+      targetRegular,
+      targetAdditional,
       targetHeadcount,
-      status,
       workingHours,
       notes,
     },
@@ -222,7 +241,7 @@ export async function updatePlotingan(id: string, formData: FormData) {
 }
 
 /**
- * Menghapus data plotingan berdasarkan ID.
+ * Menghapus data plotingan.
  */
 export async function deletePlotingan(id: string) {
   await prisma.plotingan.delete({ where: { id } });
@@ -231,36 +250,53 @@ export async function deletePlotingan(id: string) {
 }
 
 // ----------------------------------------------------------------------------
-// 4. MODUL ABSEN MASUK: Pencatatan Kehadiran Fisik saat Apel Shift
+// 4. MODUL ABSEN MASUK: Pencatatan Kehadiran & Foto Terpisah (Reg & Add)
 // ----------------------------------------------------------------------------
 /**
- * Menyimpan data serah terima kehadiran fisik di awal jam kerja (Apel).
- * Mendukung upload foto barisan apel sebagai bukti fisik keabsahan headcount.
+ * Menyimpan data serah terima kehadiran fisik saat apel pagi shift:
+ * - Hadir Regular vs Hadir Additional
+ * - Slot Upload Foto Barisan Apel REGULAR
+ * - Slot Upload Foto Barisan Apel ADDITIONAL
  */
 export async function submitAbsenMasuk(formData: FormData) {
   const plotinganId = formData.get('plotinganId') as string;
-  const actualHeadcount = parseInt(formData.get('actualHeadcount') as string, 10) || 0;
+  const actualRegular = parseInt(formData.get('actualRegular') as string, 10) || 0;
+  const actualAdditional = parseInt(formData.get('actualAdditional') as string, 10) || 0;
+  const actualHeadcount = actualRegular + actualAdditional;
   const notes = (formData.get('notes') as string) || null;
-  const photoFile = formData.get('photoIn') as File | null;
+
+  const photoInRegularFile = formData.get('photoInRegular') as File | null;
+  const photoInAdditionalFile = formData.get('photoInAdditional') as File | null;
 
   if (!plotinganId || actualHeadcount <= 0) {
-    return { success: false, error: 'Pilih plotingan dan isi total orang masuk yang valid.' };
+    return { success: false, error: 'Total orang masuk harus minimal 1 orang.' };
   }
 
-  // Simpan foto bukti jika diunggah
-  const photoInUrl = await saveUploadedFile(photoFile);
+  // Simpan foto bukti masing-masing barisan apel
+  const [photoInRegularUrl, photoInAdditionalUrl] = await Promise.all([
+    saveUploadedFile(photoInRegularFile),
+    saveUploadedFile(photoInAdditionalFile),
+  ]);
 
   await prisma.attendanceIn.upsert({
     where: { plotinganId },
     create: {
       plotinganId,
+      actualRegular,
+      actualAdditional,
       actualHeadcount,
-      photoInUrl,
+      photoInRegularUrl,
+      photoInAdditionalUrl,
+      photoInUrl: photoInRegularUrl || photoInAdditionalUrl, // fallback
       notes,
     },
     update: {
+      actualRegular,
+      actualAdditional,
       actualHeadcount,
-      ...(photoInUrl ? { photoInUrl } : {}),
+      ...(photoInRegularUrl ? { photoInRegularUrl } : {}),
+      ...(photoInAdditionalUrl ? { photoInAdditionalUrl } : {}),
+      photoInUrl: photoInRegularUrl || photoInAdditionalUrl || undefined,
       notes,
     },
   });
@@ -270,24 +306,33 @@ export async function submitAbsenMasuk(formData: FormData) {
 }
 
 // ----------------------------------------------------------------------------
-// 5. MODUL ABSEN PULANG & AUDIT INTEGRITAS: Menghitung Pulang, Tumbang & Selisih
+// 5. MODUL ABSEN PULANG & AUDIT INTEGRITAS (REGULAR VS ADDITIONAL)
 // ----------------------------------------------------------------------------
 /**
- * Menyimpan data saat shift berakhir:
- * - Jumlah orang pulang utuh
- * - Jumlah orang tumbang (sakit/klinik P3K)
- * - Foto barisan checkout dan foto bukti surat sakit/penanganan
- * - Rumus Audit Integritas:
- *   Selisih = Actual Masuk - (Pulang Utuh + Tumbang)
- *   Jika Selisih > 0 => Ada indikasi pekerja kabur/hilang tanpa izin di jam kerja.
+ * Menyimpan data kepulangan & audit integritas di akhir shift:
+ * - Pulang Regular & Pulang Additional
+ * - Tumbang Regular & Tumbang Additional
+ * - Slot Foto Barisan Pulang REGULAR & Slot Foto Checkout ADDITIONAL
+ * - Slot Foto Bukti Surat Sakit / Klinik P3K
+ * - Audit Integritas Otomatis:
+ *   Selisih Regular = Hadir Reg - (Pulang Reg + Tumbang Reg)
+ *   Selisih Additional = Hadir Add - (Pulang Add + Tumbang Add)
  */
 export async function submitAbsenPulang(formData: FormData) {
   const attendanceInId = formData.get('attendanceInId') as string;
-  const pulangHeadcount = parseInt(formData.get('pulangHeadcount') as string, 10) || 0;
-  const tumbangHeadcount = parseInt(formData.get('tumbangHeadcount') as string, 10) || 0;
+  
+  const pulangRegular = parseInt(formData.get('pulangRegular') as string, 10) || 0;
+  const pulangAdditional = parseInt(formData.get('pulangAdditional') as string, 10) || 0;
+  const pulangHeadcount = pulangRegular + pulangAdditional;
+
+  const tumbangRegular = parseInt(formData.get('tumbangRegular') as string, 10) || 0;
+  const tumbangAdditional = parseInt(formData.get('tumbangAdditional') as string, 10) || 0;
+  const tumbangHeadcount = tumbangRegular + tumbangAdditional;
+
   const tumbangNotes = (formData.get('tumbangNotes') as string) || null;
 
-  const photoPulangFile = formData.get('photoPulang') as File | null;
+  const photoPulangRegularFile = formData.get('photoPulangRegular') as File | null;
+  const photoPulangAdditionalFile = formData.get('photoPulangAdditional') as File | null;
   const photoTumbangFile = formData.get('photoTumbang') as File | null;
 
   if (!attendanceInId) {
@@ -302,13 +347,16 @@ export async function submitAbsenPulang(formData: FormData) {
     return { success: false, error: 'Data absensi masuk tidak valid.' };
   }
 
-  // LOGIKA AUDIT INTEGRITAS HEADCOUNT:
-  const actualIn = attendanceIn.actualHeadcount;
-  const isBalanced = actualIn === (pulangHeadcount + tumbangHeadcount);
-  const selisihCount = actualIn - (pulangHeadcount + tumbangHeadcount);
+  // AUDIT INTEGRITAS MASING-MASING KATEGORI:
+  const selisihRegular = attendanceIn.actualRegular - (pulangRegular + tumbangRegular);
+  const selisihAdditional = attendanceIn.actualAdditional - (pulangAdditional + tumbangAdditional);
+  const selisihCount = selisihRegular + selisihAdditional;
+  const isBalanced = selisihCount === 0;
 
-  const [photoPulangUrl, photoTumbangUrl] = await Promise.all([
-    saveUploadedFile(photoPulangFile),
+  // Proses upload foto-foto kepulangan
+  const [photoPulangRegularUrl, photoPulangAdditionalUrl, photoTumbangUrl] = await Promise.all([
+    saveUploadedFile(photoPulangRegularFile),
+    saveUploadedFile(photoPulangAdditionalFile),
     saveUploadedFile(photoTumbangFile),
   ]);
 
@@ -316,39 +364,48 @@ export async function submitAbsenPulang(formData: FormData) {
     where: { attendanceInId },
     create: {
       attendanceInId,
+      pulangRegular,
+      pulangAdditional,
       pulangHeadcount,
+      tumbangRegular,
+      tumbangAdditional,
       tumbangHeadcount,
-      photoPulangUrl,
+      photoPulangRegularUrl,
+      photoPulangAdditionalUrl,
+      photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl,
       photoTumbangUrl,
       tumbangNotes,
-      isBalanced,
+      selisihRegular,
+      selisihAdditional,
       selisihCount,
+      isBalanced,
     },
     update: {
+      pulangRegular,
+      pulangAdditional,
       pulangHeadcount,
+      tumbangRegular,
+      tumbangAdditional,
       tumbangHeadcount,
-      ...(photoPulangUrl ? { photoPulangUrl } : {}),
+      ...(photoPulangRegularUrl ? { photoPulangRegularUrl } : {}),
+      ...(photoPulangAdditionalUrl ? { photoPulangAdditionalUrl } : {}),
+      photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl || undefined,
       ...(photoTumbangUrl ? { photoTumbangUrl } : {}),
       tumbangNotes,
-      isBalanced,
+      selisihRegular,
+      selisihAdditional,
       selisihCount,
+      isBalanced,
     },
   });
 
   revalidatePath('/');
-  return { success: true, isBalanced, selisihCount };
+  return { success: true, isBalanced, selisihCount, selisihRegular, selisihAdditional };
 }
 
 // ----------------------------------------------------------------------------
-// 6. MODUL LAPORAN & REKAP KPI: Kalkulasi Statistik Kinerja & Billing Vendor
+// 6. MODUL LAPORAN & REKAP KPI: Akumulasi Terpadu Regular & Additional
 // ----------------------------------------------------------------------------
-/**
- * Menghitung rekapitulasi data kehadiran berdasarkan rentang tanggal dan vendor:
- * - Total Target vs Total Masuk (% Fulfillment Target Vendor)
- * - Total Pulang vs Total Masuk (% Retention / Ketahanan Pekerja sampai Selesai)
- * - Total Pekerja Tumbang (Sakit)
- * - Total Pekerja Selisih (Kabur / Kebocoran Biaya)
- */
 export async function getReportStats(startDate: string, endDate: string, vendorId?: string) {
   const whereClause: any = {
     date: {
@@ -372,28 +429,51 @@ export async function getReportStats(startDate: string, endDate: string, vendorI
         },
       },
     },
-    orderBy: [{ date: 'desc' }, { shift: { name: 'asc' } }],
+    orderBy: [{ date: 'desc' }, { shift: { name: 'asc' } }, { vendor: { name: 'asc' } }],
   });
 
   let totalTarget = 0;
-  let totalMasuk = 0;
-  let totalPulang = 0;
-  let totalTumbang = 0;
-  let totalSelisih = 0;
   let regTarget = 0;
   let addTarget = 0;
 
+  let totalMasuk = 0;
+  let regMasuk = 0;
+  let addMasuk = 0;
+
+  let totalPulang = 0;
+  let regPulang = 0;
+  let addPulang = 0;
+
+  let totalTumbang = 0;
+  let regTumbang = 0;
+  let addTumbang = 0;
+
+  let totalSelisih = 0;
+  let regSelisih = 0;
+  let addSelisih = 0;
+
   records.forEach((r) => {
     totalTarget += r.targetHeadcount;
-    if (r.status === 'REGULAR') regTarget += r.targetHeadcount;
-    else addTarget += r.targetHeadcount;
+    regTarget += r.targetRegular;
+    addTarget += r.targetAdditional;
 
     if (r.attendanceIn) {
       totalMasuk += r.attendanceIn.actualHeadcount;
+      regMasuk += r.attendanceIn.actualRegular;
+      addMasuk += r.attendanceIn.actualAdditional;
+
       if (r.attendanceIn.attendanceOut) {
         totalPulang += r.attendanceIn.attendanceOut.pulangHeadcount;
+        regPulang += r.attendanceIn.attendanceOut.pulangRegular;
+        addPulang += r.attendanceIn.attendanceOut.pulangAdditional;
+
         totalTumbang += r.attendanceIn.attendanceOut.tumbangHeadcount;
+        regTumbang += r.attendanceIn.attendanceOut.tumbangRegular;
+        addTumbang += r.attendanceIn.attendanceOut.tumbangAdditional;
+
         totalSelisih += r.attendanceIn.attendanceOut.selisihCount;
+        regSelisih += r.attendanceIn.attendanceOut.selisihRegular;
+        addSelisih += r.attendanceIn.attendanceOut.selisihAdditional;
       }
     }
   });
@@ -405,12 +485,20 @@ export async function getReportStats(startDate: string, endDate: string, vendorI
     records,
     totals: {
       totalTarget,
-      totalMasuk,
-      totalPulang,
-      totalTumbang,
-      totalSelisih,
       regTarget,
       addTarget,
+      totalMasuk,
+      regMasuk,
+      addMasuk,
+      totalPulang,
+      regPulang,
+      addPulang,
+      totalTumbang,
+      regTumbang,
+      addTumbang,
+      totalSelisih,
+      regSelisih,
+      addSelisih,
       overallFulfillment,
       overallRetention,
     },

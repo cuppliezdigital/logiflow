@@ -1,13 +1,15 @@
 'use client';
 
 // ============================================================================
-// KOMPONEN TAB 3: ABSEN PULANG, TUMBANG & AUDIT INTEGRITAS PASUKAN
-// Fitur:
-// 1. Audit Integritas Otomatis: Rumus Masuk = Pulang Utuh + Tumbang
-// 2. Deteksi Selisih Pekerja Kabur / Hilang Tanpa Izin
-// 3. Pencatatan Khusus Tenaga Kerja Sakit/Cedera (Tumbang) + Bukti Foto P3K
-// 4. Unggah Foto Apel Checkout / Barisan Pulang
-// 5. Integrasi Server Action submitAbsenPulang
+// KOMPONEN TAB 3: ABSEN PULANG, TUMBANG & AUDIT INTEGRITAS (REG & ADD)
+// Fitur Baru:
+// 1. 1 Kartu Terpadu per Vendor per Shift dengan indikator Regular & Additional.
+// 2. Input Kepulangan & Tumbang dipisah untuk Regular dan Additional.
+// 3. Slot Upload Foto Checkout Terpisah:
+//    - 📸 Slot Foto Barisan Pulang REGULAR
+//    - 📸 Slot Foto Barisan Pulang ADDITIONAL (jika ada)
+//    - 📸 Slot Foto Bukti Surat Klinik / P3K (jika ada yang tumbang)
+// 4. Audit Integritas Otomatis untuk Regular & Additional secara transparan.
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -24,7 +26,8 @@ import {
   HeartPulse,
   UserX,
   Sun,
-  Moon
+  Moon,
+  Layers
 } from 'lucide-react';
 import { submitAbsenPulang } from '@/app/actions';
 
@@ -43,68 +46,92 @@ export default function AbsenPulangTab({
   // --------------------------------------------------------------------------
   // STATE MANAGEMENT
   // --------------------------------------------------------------------------
-  // Objek plotingan yang sedang dipilih untuk diisi / diedit data pulangnya
   const [selectedPlotingan, setSelectedPlotingan] = useState<any>(null);
-  // Visibilitas modal formulir absen pulang
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // State angka headcount pulang & tumbang
-  const [pulangHeadcount, setPulangHeadcount] = useState<number>(0);
-  const [tumbangHeadcount, setTumbangHeadcount] = useState<number>(0);
+  // State orang pulang utuh (terpisah Reg & Add)
+  const [pulangRegular, setPulangRegular] = useState<number>(0);
+  const [pulangAdditional, setPulangAdditional] = useState<number>(0);
+
+  // State orang tumbang sakit (terpisah Reg & Add)
+  const [tumbangRegular, setTumbangRegular] = useState<number>(0);
+  const [tumbangAdditional, setTumbangAdditional] = useState<number>(0);
   const [tumbangNotes, setTumbangNotes] = useState('');
 
-  // State upload foto barisan checkout / apel pulang
-  const [photoPulangPreview, setPhotoPulangPreview] = useState<string | null>(null);
-  const [photoPulangFile, setPhotoPulangFile] = useState<File | null>(null);
+  // State upload foto barisan pulang regular
+  const [photoPulangRegPreview, setPhotoPulangRegPreview] = useState<string | null>(null);
+  const [photoPulangRegFile, setPhotoPulangRegFile] = useState<File | null>(null);
 
-  // State upload foto bukti klinik / surat sakit untuk orang tumbang
+  // State upload foto barisan pulang additional
+  const [photoPulangAddPreview, setPhotoPulangAddPreview] = useState<string | null>(null);
+  const [photoPulangAddFile, setPhotoPulangAddFile] = useState<File | null>(null);
+
+  // State upload foto bukti klinik P3K
   const [photoTumbangPreview, setPhotoTumbangPreview] = useState<string | null>(null);
   const [photoTumbangFile, setPhotoTumbangFile] = useState<File | null>(null);
 
-  // Indikator loading saat submit form
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
   // --------------------------------------------------------------------------
 
-  // Buka modal untuk plotingan tertentu
+  // Buka modal absen pulang
   const handleOpenModal = (plot: any) => {
     setSelectedPlotingan(plot);
     const existingIn = plot.attendanceIn;
     const existingOut = existingIn?.attendanceOut;
 
+    const inReg = existingIn ? (existingIn.actualRegular ?? existingIn.actualHeadcount) : 0;
+    const inAdd = existingIn ? (existingIn.actualAdditional ?? 0) : 0;
+
     if (existingOut) {
-      // Jika sudah pernah checkout, muat data existing
-      setPulangHeadcount(existingOut.pulangHeadcount);
-      setTumbangHeadcount(existingOut.tumbangHeadcount || 0);
+      setPulangRegular(existingOut.pulangRegular ?? existingOut.pulangHeadcount);
+      setPulangAdditional(existingOut.pulangAdditional ?? 0);
+      setTumbangRegular(existingOut.tumbangRegular ?? existingOut.tumbangHeadcount);
+      setTumbangAdditional(existingOut.tumbangAdditional ?? 0);
       setTumbangNotes(existingOut.tumbangNotes || '');
-      setPhotoPulangPreview(existingOut.photoPulangUrl || null);
+
+      setPhotoPulangRegPreview(existingOut.photoPulangRegularUrl || existingOut.photoPulangUrl || null);
+      setPhotoPulangAddPreview(existingOut.photoPulangAdditionalUrl || null);
       setPhotoTumbangPreview(existingOut.photoTumbangUrl || null);
     } else {
-      // Default: diasumsikan semua orang yang masuk pulang utuh
-      setPulangHeadcount(existingIn ? existingIn.actualHeadcount : 0);
-      setTumbangHeadcount(0);
+      // Default diasumsikan semua orang yang masuk pulang utuh
+      setPulangRegular(inReg);
+      setPulangAdditional(inAdd);
+      setTumbangRegular(0);
+      setTumbangAdditional(0);
       setTumbangNotes('');
-      setPhotoPulangPreview(null);
+      setPhotoPulangRegPreview(null);
+      setPhotoPulangAddPreview(null);
       setPhotoTumbangPreview(null);
     }
 
-    setPhotoPulangFile(null);
+    setPhotoPulangRegFile(null);
+    setPhotoPulangAddFile(null);
     setPhotoTumbangFile(null);
     setIsModalOpen(true);
   };
 
-  // Handler upload foto apel pulang
-  const handlePhotoPulangChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload Foto Pulang Regular
+  const handlePhotoPulangRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoPulangFile(file);
-      setPhotoPulangPreview(URL.createObjectURL(file));
+      setPhotoPulangRegFile(file);
+      setPhotoPulangRegPreview(URL.createObjectURL(file));
     }
   };
 
-  // Handler upload foto bukti tumbang (P3K / Klinik)
+  // Upload Foto Pulang Additional
+  const handlePhotoPulangAddChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoPulangAddFile(file);
+      setPhotoPulangAddPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Upload Foto Bukti Tumbang / Klinik
   const handlePhotoTumbangChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -113,7 +140,7 @@ export default function AbsenPulangTab({
     }
   };
 
-  // Submit data absen pulang & audit ke server
+  // Submit form absen pulang ke server
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlotingan?.attendanceIn?.id) return;
@@ -122,20 +149,25 @@ export default function AbsenPulangTab({
     try {
       const formData = new FormData();
       formData.append('attendanceInId', selectedPlotingan.attendanceIn.id);
-      formData.append('pulangHeadcount', pulangHeadcount.toString());
-      formData.append('tumbangHeadcount', tumbangHeadcount.toString());
+      formData.append('pulangRegular', pulangRegular.toString());
+      formData.append('pulangAdditional', pulangAdditional.toString());
+      formData.append('tumbangRegular', tumbangRegular.toString());
+      formData.append('tumbangAdditional', tumbangAdditional.toString());
       formData.append('tumbangNotes', tumbangNotes);
 
-      if (photoPulangFile) {
-        formData.append('photoPulang', photoPulangFile);
+      if (photoPulangRegFile) {
+        formData.append('photoPulangRegular', photoPulangRegFile);
+      }
+      if (photoPulangAddFile) {
+        formData.append('photoPulangAdditional', photoPulangAddFile);
       }
       if (photoTumbangFile) {
         formData.append('photoTumbang', photoTumbangFile);
       }
 
       await submitAbsenPulang(formData);
-      setIsModalOpen(false); // Tutup modal
-      onRefresh();           // Refresh data tabel
+      setIsModalOpen(false);
+      onRefresh();
     } catch (err: any) {
       alert(err.message || 'Gagal menyimpan absensi pulang.');
     } finally {
@@ -144,16 +176,18 @@ export default function AbsenPulangTab({
   };
 
   // --------------------------------------------------------------------------
-  // LOGIKA AUDIT REALTIME DI DALAM MODAL
+  // LOGIKA AUDIT INTEGRITAS REALTIME DI MODAL
   // --------------------------------------------------------------------------
-  // Jumlah orang riil yang hadir saat apel masuk
-  const actualIn = selectedPlotingan?.attendanceIn?.actualHeadcount || 0;
-  // Total orang yang terdata saat pulang (Pulang Utuh + Tumbang Sakit)
-  const totalAccounted = pulangHeadcount + tumbangHeadcount;
-  // Selisih: Jika > 0, artinya ada orang yang kabur/hilang di tengah shift
-  const selisih = actualIn - totalAccounted;
-  // Status integritas seimbang (klop)
-  const isBalanced = selisih === 0;
+  const inRegModal = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
+  const inAddModal = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualAdditional ?? 0) : 0;
+  const inTotalModal = inRegModal + inAddModal;
+
+  const selisihRegModal = inRegModal - (pulangRegular + tumbangRegular);
+  const selisihAddModal = inAddModal - (pulangAdditional + tumbangAdditional);
+  const selisihTotalModal = selisihRegModal + selisihAddModal;
+  const isBalancedModal = selisihTotalModal === 0;
+
+  const totalTumbangModal = tumbangRegular + tumbangAdditional;
 
   return (
     <div className="space-y-6">
@@ -162,14 +196,13 @@ export default function AbsenPulangTab({
       <div className="bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-l-4 border-rose-500 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">FASE 3: Absen Pulang, Tumbang & Audit Integritas</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Diisi di akhir shift saat apel checkout. Sistem akan mengaudit otomatis: 
-          <span className="font-bold text-slate-900"> Masuk = Pulang Utuh + Tumbang</span>. Selisih yang tidak tercatat akan terhitung sebagai pekerja kabur.
+          Diisi di akhir shift. Sistem mengaudit otomatis integritas kuota: 
+          <span className="font-bold text-slate-900"> Masuk = Pulang Utuh + Tumbang</span> (terpisah untuk Regular dan Additional).
         </p>
       </div>
 
-      {/* 2. DAFTAR KARTU MONITORING ABSEN PULANG */}
+      {/* 2. DAFTAR KARTU (1 KARTU PER VENDOR PER SHIFT) */}
       {plotingans.length === 0 ? (
-        // State kosong jika belum ada plotingan
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
           <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p className="text-base font-bold text-slate-700">Belum Ada Plotingan pada Tanggal Ini</p>
@@ -180,12 +213,22 @@ export default function AbsenPulangTab({
           {plotingans.map((p) => {
             const hasCheckedIn = !!p.attendanceIn;
             const hasCheckedOut = !!p.attendanceIn?.attendanceOut;
-            const inCount = p.attendanceIn?.actualHeadcount || 0;
+            
+            const inReg = p.attendanceIn?.actualRegular ?? p.attendanceIn?.actualHeadcount ?? 0;
+            const inAdd = p.attendanceIn?.actualAdditional ?? 0;
+            const inTotal = p.attendanceIn?.actualHeadcount ?? 0;
+
             const outRecord = p.attendanceIn?.attendanceOut;
-            const pulang = outRecord?.pulangHeadcount || 0;
-            const tumbang = outRecord?.tumbangHeadcount || 0;
-            const selisihCard = outRecord?.selisihCount || 0;
+            const pulangTotal = outRecord?.pulangHeadcount ?? 0;
+            const pulangReg = outRecord?.pulangRegular ?? outRecord?.pulangHeadcount ?? 0;
+            const pulangAdd = outRecord?.pulangAdditional ?? 0;
+
+            const tumbangTotal = outRecord?.tumbangHeadcount ?? 0;
+            const selisihCard = outRecord?.selisihCount ?? 0;
             const isMatch = outRecord?.isBalanced ?? false;
+
+            const targetReg = p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0);
+            const targetAdd = p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0);
 
             return (
               <div
@@ -227,7 +270,7 @@ export default function AbsenPulangTab({
                       ) : (
                         <>
                           <AlertTriangle className="w-4 h-4 text-rose-600 animate-bounce" />
-                          Closed &bull; Ada Selisih {selisihCard} Orang!
+                          Closed &bull; Selisih {selisihCard} Orang!
                         </>
                       )
                     ) : (
@@ -237,57 +280,81 @@ export default function AbsenPulangTab({
                       </>
                     )}
                   </span>
-                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-white/80">
-                    {p.shift.name.split(' ')[0]}
+                  
+                  {/* Badge Shift */}
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-xs">
+                    {p.shift.name.toLowerCase().includes('pagi') ? (
+                      <Sun className="w-3 h-3 text-amber-500" />
+                    ) : (
+                      <Moon className="w-3 h-3 text-indigo-500" />
+                    )}
+                    {p.shift.name}
                   </span>
                 </div>
 
                 <div className="p-4 space-y-3">
-                  {/* Info Vendor & Shift */}
+                  {/* Info Vendor & Rincian Target */}
                   <div>
                     <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-1.5">
                       <Building2 className="w-4 h-4 text-slate-400" />
                       {p.vendor.name}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                      {p.shift.name.toLowerCase().includes('pagi') ? (
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                      ) : (
-                        <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                        Target Reg: {targetReg}
+                      </span>
+                      {targetAdd > 0 && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                          Target Add: {targetAdd}
+                        </span>
                       )}
-                      <span className="font-bold text-slate-700">{p.shift.name}</span>
-                      {p.workingHours && <span className="text-slate-400">&bull; {p.workingHours}</span>}
-                    </p>
+                    </div>
                   </div>
 
-                  {/* Grid Rincian Headcount (Masuk vs Pulang vs Tumbang vs Selisih) */}
+                  {/* Grid Rincian Headcount Terpadu */}
                   {hasCheckedIn ? (
-                    <div className="grid grid-cols-4 gap-1.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
-                      {/* Masuk */}
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Masuk</span>
-                        <p className="text-base font-black text-slate-800 mt-0.5">{inCount}</p>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
+                      <div className="grid grid-cols-4 gap-1 text-center border-b border-slate-200 pb-1 text-[10px] uppercase font-bold text-slate-400">
+                        <span>Status</span>
+                        <span>Masuk</span>
+                        <span>Pulang</span>
+                        <span>Selisih</span>
                       </div>
-                      {/* Pulang Utuh */}
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Pulang</span>
-                        <p className={`text-base font-black mt-0.5 ${hasCheckedOut ? 'text-blue-600' : 'text-slate-300'}`}>
-                          {hasCheckedOut ? pulang : '-'}
-                        </p>
+                      
+                      {/* Baris Regular */}
+                      <div className="grid grid-cols-4 gap-1 text-center text-xs font-semibold">
+                        <span className="text-blue-700 font-bold text-left pl-1">Regular</span>
+                        <span className="text-slate-900 font-extrabold">{inReg}</span>
+                        <span className={hasCheckedOut ? 'text-blue-600 font-extrabold' : 'text-slate-400'}>
+                          {hasCheckedOut ? pulangReg : '-'}
+                        </span>
+                        <span className={hasCheckedOut ? (outRecord?.selisihRegular ? 'text-rose-600 font-black' : 'text-emerald-600') : 'text-slate-400'}>
+                          {hasCheckedOut ? outRecord?.selisihRegular ?? 0 : '-'}
+                        </span>
                       </div>
-                      {/* Tumbang Sakit */}
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Tumbang</span>
-                        <p className={`text-base font-black mt-0.5 ${hasCheckedOut ? (tumbang > 0 ? 'text-amber-600' : 'text-slate-400') : 'text-slate-300'}`}>
-                          {hasCheckedOut ? tumbang : '-'}
-                        </p>
-                      </div>
-                      {/* Selisih Kabur */}
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Selisih</span>
-                        <p className={`text-base font-black mt-0.5 ${hasCheckedOut ? (selisihCard > 0 ? 'text-rose-600 font-extrabold' : 'text-emerald-600') : 'text-slate-300'}`}>
-                          {hasCheckedOut ? selisihCard : '-'}
-                        </p>
+
+                      {/* Baris Additional (jika ada) */}
+                      {targetAdd > 0 && (
+                        <div className="grid grid-cols-4 gap-1 text-center text-xs font-semibold">
+                          <span className="text-amber-700 font-bold text-left pl-1">Additional</span>
+                          <span className="text-slate-900 font-extrabold">{inAdd}</span>
+                          <span className={hasCheckedOut ? 'text-amber-600 font-extrabold' : 'text-slate-400'}>
+                            {hasCheckedOut ? pulangAdd : '-'}
+                          </span>
+                          <span className={hasCheckedOut ? (outRecord?.selisihAdditional ? 'text-rose-600 font-black' : 'text-emerald-600') : 'text-slate-400'}>
+                            {hasCheckedOut ? outRecord?.selisihAdditional ?? 0 : '-'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Baris Total & Tumbang */}
+                      <div className="border-t border-slate-200 pt-1 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-semibold">
+                          Total Tumbang (Sakit): <strong className="text-amber-600">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
+                        </span>
+                        <span className="text-slate-500 font-semibold">
+                          Total Selisih: <strong className={selisihCard > 0 ? 'text-rose-600 font-black' : 'text-emerald-600 font-black'}>{hasCheckedOut ? selisihCard : 0} Org</strong>
+                        </span>
                       </div>
                     </div>
                   ) : (
@@ -296,12 +363,12 @@ export default function AbsenPulangTab({
                     </div>
                   )}
 
-                  {/* Catatan Orang Tumbang & Foto Bukti jika ada */}
-                  {hasCheckedOut && tumbang > 0 && (
+                  {/* Keterangan Tumbang jika ada */}
+                  {hasCheckedOut && tumbangTotal > 0 && (
                     <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-900 space-y-1">
                       <div className="flex items-center gap-1 font-bold text-amber-800">
                         <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Keterangan Sakit ({tumbang} Orang):</span>
+                        <span>Keterangan Sakit ({tumbangTotal} Orang):</span>
                       </div>
                       <p className="text-[11px] text-amber-700 italic">
                         "{outRecord?.tumbangNotes || 'Tidak ada rincian catatan sakit'}"
@@ -309,7 +376,7 @@ export default function AbsenPulangTab({
                     </div>
                   )}
 
-                  {/* Tombol Aksi Buka Form Modal Absen Pulang */}
+                  {/* Tombol Input / Edit Absen Pulang */}
                   {hasCheckedIn && (
                     <button
                       onClick={() => handleOpenModal(p)}
@@ -353,65 +420,87 @@ export default function AbsenPulangTab({
             {/* Form Input */}
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               
-              {/* Ringkasan Jumlah Orang Hadir di Awal (Masuk) */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600 uppercase">Tercatat Hadir Masuk (Apel):</span>
-                <span className="text-base font-black text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-xs">
-                  {actualIn} Orang
+              {/* Ringkasan Hadir Masuk di Awal */}
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-600 uppercase">Tercatat Hadir Masuk:</span>
+                <span className="font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                  Reg: {inRegModal} &bull; Add: {inAddModal} (Total: {inTotalModal} Org)
                 </span>
               </div>
 
-              {/* Input Orang Pulang Utuh */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              {/* 1. INPUT KEPULANGAN UTUH (REGULAR & ADDITIONAL) */}
+              <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200 space-y-2">
+                <label className="block text-xs font-bold text-blue-900 uppercase">
                   1. Orang Pulang Utuh (Selesai Shift)
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={actualIn}
-                  required
-                  value={pulangHeadcount}
-                  onChange={(e) => setPulangHeadcount(parseInt(e.target.value) || 0)}
-                  className="w-full border-2 border-blue-400 bg-white rounded-xl px-4 py-2 text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  Jumlah pekerja yang mengikuti apel kepulangan setelah shift selesai.
-                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] font-bold text-blue-700 block mb-1">Pulang Regular:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={inRegModal}
+                      required
+                      value={pulangRegular}
+                      onChange={(e) => setPulangRegular(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-700 block mb-1">Pulang Additional:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={inAddModal}
+                      value={pulangAdditional}
+                      onChange={(e) => setPulangAdditional(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Input Orang Tumbang (Sakit / Cedera / P3K) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center gap-1.5 text-amber-700">
-                  <HeartPulse className="w-3.5 h-3.5" />
-                  2. Orang Tumbang di Jam Kerja (Sakit / P3K)
+              {/* 2. INPUT ORANG TUMBANG (REGULAR & ADDITIONAL) */}
+              <div className="p-3.5 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
+                <label className="block text-xs font-bold text-amber-900 uppercase flex items-center gap-1.5">
+                  <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
+                  2. Orang Tumbang di Jam Kerja (Sakit / Cedera / P3K)
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={actualIn}
-                  value={tumbangHeadcount}
-                  onChange={(e) => setTumbangHeadcount(parseInt(e.target.value) || 0)}
-                  className="w-full border border-slate-300 bg-white rounded-xl px-4 py-2 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  Pekerja yang dipulangkan awal karena sakit / kecelakaan kerja dengan rekomendasi klinik.
-                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] font-bold text-blue-700 block mb-1">Tumbang Regular:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={tumbangRegular}
+                      onChange={(e) => setTumbangRegular(parseInt(e.target.value) || 0)}
+                      className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-700 block mb-1">Tumbang Additional:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={tumbangAdditional}
+                      onChange={(e) => setTumbangAdditional(parseInt(e.target.value) || 0)}
+                      className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* KOTAK AUDIT INTEGRITAS OTOMATIS (LIVE FORMULA) */}
+              {/* KOTAK AUDIT INTEGRITAS REALTIME */}
               <div
                 className={`p-3.5 rounded-xl border transition-all ${
-                  isBalanced
+                  isBalancedModal
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                    : selisih > 0
-                    ? 'bg-rose-50 border-rose-300 text-rose-900'
-                    : 'bg-amber-50 border-amber-300 text-amber-900'
+                    : 'bg-rose-50 border-rose-300 text-rose-900'
                 }`}
               >
                 <div className="flex items-center justify-between text-xs font-bold mb-1.5">
                   <span className="flex items-center gap-1.5">
-                    {isBalanced ? (
+                    {isBalancedModal ? (
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-rose-600" />
@@ -419,36 +508,31 @@ export default function AbsenPulangTab({
                     Hasil Audit Integritas:
                   </span>
                   <span className="font-extrabold px-2 py-0.5 rounded bg-white/80 shadow-xs">
-                    {isBalanced ? 'SEIMBANG / MATCH' : selisih > 0 ? `SELISIH ${selisih} KABUR` : `LEBIH ${Math.abs(selisih)}`}
+                    {isBalancedModal ? 'SEIMBANG / MATCH' : `SELISIH ${selisihTotalModal} KABUR`}
                   </span>
                 </div>
 
-                <div className="text-xs space-y-1">
-                  <p className="font-mono bg-white/70 px-2 py-1 rounded">
-                    Masuk ({actualIn}) = Pulang ({pulangHeadcount}) + Tumbang ({tumbangHeadcount}) + Selisih ({selisih})
-                  </p>
-                  {isBalanced && (
-                    <p className="text-emerald-700 text-[11px]">
-                      ✔ Data headcount lengkap dan akurat 100%. Tagihan vendor dapat diproses utuh.
-                    </p>
-                  )}
-                  {selisih > 0 && (
-                    <p className="text-rose-700 text-[11px] font-semibold flex items-center gap-1">
-                      <UserX className="w-3.5 h-3.5" />
-                      Perhatian: Terdapat {selisih} pekerja hilang/kabur di tengah shift tanpa keterangan!
-                    </p>
-                  )}
-                  {selisih < 0 && (
-                    <p className="text-amber-700 text-[11px]">
-                      Jumlah kepulangan melebihi catatan masuk awal saat apel pagi.
-                    </p>
+                <div className="text-[11px] space-y-1">
+                  <div className="flex justify-between bg-white/70 px-2 py-1 rounded">
+                    <span>Audit Regular: Masuk {inRegModal} = Pulang {pulangRegular} + Tumbang {tumbangRegular}</span>
+                    <strong className={selisihRegModal > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                      {selisihRegModal > 0 ? `Selisih ${selisihRegModal}` : '✔ Klop'}
+                    </strong>
+                  </div>
+                  {inAddModal > 0 && (
+                    <div className="flex justify-between bg-white/70 px-2 py-1 rounded">
+                      <span>Audit Additional: Masuk {inAddModal} = Pulang {pulangAdditional} + Tumbang {tumbangAdditional}</span>
+                      <strong className={selisihAddModal > 0 ? 'text-rose-600' : 'text-emerald-600'}>
+                        {selisihAddModal > 0 ? `Selisih ${selisihAddModal}` : '✔ Klop'}
+                      </strong>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Form Tambahan Khusus Jika Ada yang Tumbang */}
-              {tumbangHeadcount > 0 && (
-                <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200 space-y-3 animate-in fade-in duration-150">
+              {/* Form Khusus Jika Ada yang Tumbang */}
+              {totalTumbangModal > 0 && (
+                <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200 space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Catatan Medis / Keterangan Tumbang (Wajib)
@@ -458,15 +542,14 @@ export default function AbsenPulangTab({
                       required
                       value={tumbangNotes}
                       onChange={(e) => setTumbangNotes(e.target.value)}
-                      placeholder="Contoh: 1 orang pusing dock 2, 1 orang kram otot kaki saat unloading..."
+                      placeholder="Contoh: 1 orang pusing dock 2, 1 orang kram otot kaki..."
                       className="w-full border border-amber-300 bg-white rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
 
-                  {/* Foto Bukti Surat Sakit / Penanganan P3K */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Foto Bukti Penanganan Klinik / Form P3K
+                      Foto Bukti Surat Sakit / Klinik P3K
                     </label>
                     <label className="flex items-center gap-2 border border-dashed border-amber-300 rounded-xl p-2.5 bg-white hover:bg-amber-50 transition-colors cursor-pointer text-xs">
                       <Camera className="w-4 h-4 text-amber-600" />
@@ -494,42 +577,75 @@ export default function AbsenPulangTab({
                 </div>
               )}
 
-              {/* Upload Foto Apel Pulang / Checkout */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Foto Apel Checkout / Barisan Pulang
-                </label>
-                <div className="space-y-2">
-                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-3.5 hover:border-blue-500 hover:bg-blue-50/20 transition-all cursor-pointer">
-                    <Camera className="w-6 h-6 text-blue-500 mb-1" />
-                    <span className="text-xs font-bold text-slate-700">Ambil Foto Barisan Pulang</span>
+              {/* DUA SLOT FOTO PULANG TERPISAH: REGULAR & ADDITIONAL */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-700 uppercase">Dokumentasi Foto Checkout Kepulangan</p>
+
+                {/* 1. Foto Pulang Regular */}
+                <div className="p-3 bg-blue-50/40 rounded-xl border border-blue-200 space-y-2">
+                  <label className="block text-xs font-bold text-blue-900">
+                    Foto Barisan Pulang REGULAR
+                  </label>
+                  <label className="flex items-center gap-2 border border-dashed border-blue-300 rounded-lg p-2.5 bg-white hover:bg-blue-50/50 transition-colors cursor-pointer text-xs font-semibold text-blue-700">
+                    <Camera className="w-4 h-4 text-blue-600" />
+                    <span>Ambil Foto Barisan Pulang Regular</span>
                     <input
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      onChange={handlePhotoPulangChange}
+                      onChange={handlePhotoPulangRegChange}
                       className="hidden"
                     />
                   </label>
-
-                  {photoPulangPreview && (
-                    <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-40 bg-slate-100">
-                      <img src={photoPulangPreview} alt="Preview Foto Pulang" className="w-full h-40 object-cover" />
+                  {photoPulangRegPreview && (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
+                      <img src={photoPulangRegPreview} alt="Foto Pulang Regular" className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        onClick={() => { setPhotoPulangPreview(null); setPhotoPulangFile(null); }}
-                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 text-xs shadow-md cursor-pointer"
-                        title="Hapus foto"
+                        onClick={() => { setPhotoPulangRegPreview(null); setPhotoPulangRegFile(null); }}
+                        className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
                 </div>
+
+                {/* 2. Foto Pulang Additional (jika ada) */}
+                {inAddModal > 0 && (
+                  <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
+                    <label className="block text-xs font-bold text-amber-900">
+                      Foto Barisan Pulang ADDITIONAL
+                    </label>
+                    <label className="flex items-center gap-2 border border-dashed border-amber-300 rounded-lg p-2.5 bg-white hover:bg-amber-50/50 transition-colors cursor-pointer text-xs font-semibold text-amber-700">
+                      <Camera className="w-4 h-4 text-amber-600" />
+                      <span>Ambil Foto Barisan Pulang Additional</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoPulangAddChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {photoPulangAddPreview && (
+                      <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
+                        <img src={photoPulangAddPreview} alt="Foto Pulang Additional" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => { setPhotoPulangAddPreview(null); setPhotoPulangAddFile(null); }}
+                          className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Tombol Aksi Form */}
-              <div className="flex gap-3 pt-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -554,4 +670,3 @@ export default function AbsenPulangTab({
     </div>
   );
 }
-

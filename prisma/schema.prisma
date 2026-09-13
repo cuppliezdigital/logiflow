@@ -18,7 +18,7 @@ generator client {
 // ----------------------------------------------------------------------------
 model Vendor {
   id         String      @id @default(cuid())
-  name       String      // Nama perusahaan vendor (misal: PT Sumber Makmur Mandiri)
+  name       String      // Nama perusahaan vendor (misal: PT BAL Logistik Internasional)
   picName    String?     // Nama kontak person (PIC) dari vendor
   phone      String?     // Nomor telepon / WhatsApp PIC vendor
   status     String      @default("ACTIVE") // Status kemitraan: ACTIVE / INACTIVE
@@ -42,57 +42,82 @@ model Shift {
 
 // ----------------------------------------------------------------------------
 // 3. MODEL PLOTINGAN (Target Kebutuhan Manpower / H-1 Planning)
-// Rencana jumlah pekerja yang dipesan ke vendor untuk tanggal & shift tertentu.
+// 1 Vendor pada 1 Shift hanya memiliki 1 baris Plotingan yang sudah langsung
+// mencakup kuota REGULAR dan kuota ADDITIONAL (Lembur/Tambahan) sekaligus.
 // ----------------------------------------------------------------------------
 model Plotingan {
-  id              String         @id @default(cuid())
-  date            String         // Tanggal kerja format YYYY-MM-DD (misal: 2026-09-12)
-  vendorId        String
-  vendor          Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  shiftId         String
-  shift           Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  status          String         @default("REGULAR") // Tipe kuota: "REGULAR" (rutin) vs "ADDITIONAL" (lembur/tambahan)
-  targetHeadcount Int            // Target jumlah orang yang harus dihadirkan vendor
-  workingHours    String?        // Jam kerja operasional (opsional/fleksibel, misal: "07:00 - 15:30" atau "Fleksibel")
-  notes           String?        // Catatan khusus (misal: "Khusus area sortir inbound")
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  attendanceIn    AttendanceIn?  // Relasi: 1 Plotingan memiliki 1 data Absen Masuk
+  id               String         @id @default(cuid())
+  date             String         // Tanggal kerja format YYYY-MM-DD (misal: 2026-09-12)
+  vendorId         String
+  vendor           Vendor         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  shiftId          String
+  shift            Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  targetRegular    Int            @default(0) // Kuota target tenaga kerja regular (rutin)
+  targetAdditional Int            @default(0) // Kuota target tenaga kerja additional (lembur/peak)
+  targetHeadcount  Int            // Total target kuota (targetRegular + targetAdditional)
+  status           String?        @default("MIXED") // Kompatibilitas status
+  workingHours     String?        // Jam kerja operasional (opsional/fleksibel, misal: "07:00 - 15:30" atau "Fleksibel")
+  notes            String?        // Catatan khusus (misal: "Khusus area sortir inbound")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  attendanceIn     AttendanceIn?  // Relasi: 1 Plotingan memiliki 1 data Absen Masuk
 
   @@index([date])
 }
 
 // ----------------------------------------------------------------------------
 // 4. MODEL ATTENDANCE IN (Absen Masuk / Serah Terima Pasukan di Apel Pagi)
-// Mencatat jumlah orang fisik yang beneran hadir saat apel/briefing awal shift.
+// Mencatat kehadiran fisik orang riil saat apel, dipisahkan antara pasukan
+// REGULAR dan pasukan ADDITIONAL, lengkap dengan 2 slot foto barisan terpisah.
 // ----------------------------------------------------------------------------
 model AttendanceIn {
-  id              String         @id @default(cuid())
-  plotinganId     String         @unique
-  plotingan       Plotingan      @relation(fields: [plotinganId], references: [id], onDelete: Cascade)
-  checkInTime     DateTime       @default(now()) // Waktu serah terima absen masuk
-  actualHeadcount Int            // Jumlah orang riil yang hadir di barisan apel
-  photoInUrl      String?        // Link URL foto barisan apel (bukti serah terima)
-  notes           String?        // Catatan saat serah terima
-  createdAt       DateTime       @default(now())
-  attendanceOut   AttendanceOut? // Relasi: 1 Absen Masuk memiliki 1 data Absen Pulang
+  id                    String         @id @default(cuid())
+  plotinganId           String         @unique
+  plotingan             Plotingan      @relation(fields: [plotinganId], references: [id], onDelete: Cascade)
+  checkInTime           DateTime       @default(now()) // Waktu serah terima apel masuk
+  actualRegular         Int            @default(0)     // Jumlah fisik orang regular yang hadir
+  actualAdditional      Int            @default(0)     // Jumlah fisik orang additional yang hadir
+  actualHeadcount       Int            // Total orang masuk (actualRegular + actualAdditional)
+  photoInRegularUrl     String?        // Link URL foto barisan apel pasukan REGULAR
+  photoInAdditionalUrl  String?        // Link URL foto barisan apel pasukan ADDITIONAL
+  photoInUrl            String?        // Fallback kompatibilitas foto umum
+  notes                 String?        // Catatan saat serah terima apel
+  createdAt             DateTime       @default(now())
+  attendanceOut         AttendanceOut? // Relasi: 1 Absen Masuk memiliki 1 data Absen Pulang
 }
 
 // ----------------------------------------------------------------------------
 // 5. MODEL ATTENDANCE OUT (Absen Pulang, Tumbang & Audit Integritas)
-// Mencatat orang pulang utuh vs orang tumbang sakit, serta deteksi pekerja kabur.
+// Mencatat kepulangan dan orang sakit/tumbang yang dipisahkan antara REGULAR
+// dan ADDITIONAL, foto barisan checkout masing-masing, serta bukti surat klinik.
 // ----------------------------------------------------------------------------
 model AttendanceOut {
-  id               String       @id @default(cuid())
-  attendanceInId   String       @unique
-  attendanceIn     AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
-  checkOutTime     DateTime     @default(now()) // Waktu checkout/apel selesai shift
-  pulangHeadcount  Int          // Jumlah orang yang pulang utuh sampai jam kerja selesai
-  tumbangHeadcount Int          @default(0)     // Jumlah orang yang sakit/cedera di jam kerja
-  photoPulangUrl   String?      // Link URL foto barisan saat pulang
-  photoTumbangUrl  String?      // Link URL foto surat sakit / bukti penanganan klinik P3K
-  tumbangNotes     String?      // Rincian penyebab tumbang (misal: kram otot di dock 4)
-  isBalanced       Boolean      @default(true)  // True jika Masuk == Pulang + Tumbang
-  selisihCount     Int          @default(0)     // Selisih orang kabur: Masuk - (Pulang + Tumbang)
-  createdAt        DateTime     @default(now())
+  id                      String       @id @default(cuid())
+  attendanceInId          String       @unique
+  attendanceIn            AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
+  checkOutTime            DateTime     @default(now()) // Waktu checkout/apel selesai shift
+  
+  // Rincian Kepulangan Utuh
+  pulangRegular           Int          @default(0)     // Jumlah orang regular yang pulang utuh
+  pulangAdditional        Int          @default(0)     // Jumlah orang additional yang pulang utuh
+  pulangHeadcount         Int          // Total orang pulang utuh (pulangRegular + pulangAdditional)
+  
+  // Rincian Orang Tumbang (Sakit / Cedera Kerja)
+  tumbangRegular          Int          @default(0)     // Jumlah orang regular yang sakit/tumbang
+  tumbangAdditional       Int          @default(0)     // Jumlah orang additional yang sakit/tumbang
+  tumbangHeadcount        Int          @default(0)     // Total orang tumbang (tumbangRegular + tumbangAdditional)
+  
+  // Dokumentasi Foto Bukti
+  photoPulangRegularUrl   String?      // Link URL foto barisan checkout pasukan REGULAR
+  photoPulangAdditionalUrl String?     // Link URL foto barisan checkout pasukan ADDITIONAL
+  photoPulangUrl          String?      // Fallback kompatibilitas foto pulang umum
+  photoTumbangUrl         String?      // Link URL foto surat sakit / bukti klinik P3K
+  tumbangNotes            String?      // Rincian penyebab tumbang (misal: kram otot di dock 4)
+  
+  // Hasil Audit Integritas (Deteksi Pekerja Kabur)
+  selisihRegular          Int          @default(0)     // Selisih kabur regular: actualRegular - (pulangReg + tumbangReg)
+  selisihAdditional       Int          @default(0)     // Selisih kabur additional: actualAdd - (pulangAdd + tumbangAdd)
+  selisihCount            Int          @default(0)     // Total selisih orang kabur
+  isBalanced              Boolean      @default(true)  // True jika selisihCount == 0 (seimbang/klop)
+  createdAt               DateTime     @default(now())
 }

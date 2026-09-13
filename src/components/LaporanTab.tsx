@@ -2,11 +2,11 @@
 
 // ============================================================================
 // KOMPONEN TAB 4: LAPORAN REKAPITULASI KPI & EXPORT EXCEL VALIDASI INVOICE
-// Fitur:
-// 1. Filter Rentang Tanggal (Start Date & End Date) serta Pilihan Vendor
-// 2. Dashboard Kartu KPI Utama: Target, Fulfillment, Retensi, Tumbang, & Selisih
-// 3. Tabel Detail Rekap Kehadiran dan Audit Integritas per Shift
-// 4. Download Laporan Spreadsheet Excel (.xlsx) untuk Validasi Tagihan Vendor
+// Fitur Baru:
+// 1. 1 Baris per Vendor per Shift (menyatukan kuota Regular & Additional).
+// 2. Dropdown Filter Vendor dengan warna teks kontras tinggi (jelas terbaca).
+// 3. Kolom Tabel Terpadu: Rincian Target, Masuk, Pulang, Tumbang, & Selisih.
+// 4. Download Spreadsheet Excel (.xlsx) dengan kolom Regular & Additional terpisah.
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -14,15 +14,15 @@ import {
   FileSpreadsheet, 
   Download, 
   Calendar, 
-  Filter, 
   Users, 
   TrendingUp, 
   HeartPulse, 
   AlertTriangle, 
   CheckCircle2, 
-  Clock, 
   Building2,
-  RefreshCw
+  RefreshCw,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
 
@@ -39,26 +39,18 @@ export default function LaporanTab({
   // --------------------------------------------------------------------------
   // STATE MANAGEMENT
   // --------------------------------------------------------------------------
-  // Rentang tanggal filter (default: awal bulan berjalan s.d. tanggal terpilih)
   const defaultStart = selectedDate ? `${selectedDate.substring(0, 7)}-01` : new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(selectedDate || new Date().toISOString().split('T')[0]);
   
-  // Filter vendor (default: 'ALL' untuk semua vendor)
   const [selectedVendorId, setSelectedVendorId] = useState('ALL');
-
-  // Menyimpan data statistik dan daftar record dari backend
   const [reportData, setReportData] = useState<any>(null);
-  // Status loading saat mengambil data dari server
   const [isLoading, setIsLoading] = useState(false);
-  // Status saat tombol download excel sedang diproses
   const [isExporting, setIsExporting] = useState(false);
 
   // --------------------------------------------------------------------------
   // DATA FETCHING & FILTER HANDLERS
   // --------------------------------------------------------------------------
-  
-  // Fungsi mengambil rekap statistik dari Server Action
   const fetchStats = async () => {
     setIsLoading(true);
     try {
@@ -71,12 +63,11 @@ export default function LaporanTab({
     }
   };
 
-  // Muat data otomatis pertama kali saat tab dibuka atau saat tanggal berubah
   useEffect(() => {
     fetchStats();
   }, [startDate, endDate, selectedVendorId]);
 
-  // Handler untuk download file Excel dari API route Next.js
+  // Handler download Excel
   const handleExportExcel = () => {
     setIsExporting(true);
     const params = new URLSearchParams({
@@ -85,19 +76,26 @@ export default function LaporanTab({
       vendorId: selectedVendorId,
     });
     
-    // Memicu pengunduhan file Excel via browser window location
     window.location.href = `/api/export-excel?${params.toString()}`;
     setTimeout(() => setIsExporting(false), 2000);
   };
 
   const totals = reportData?.totals || {
     totalTarget: 0,
-    totalMasuk: 0,
-    totalPulang: 0,
-    totalTumbang: 0,
-    totalSelisih: 0,
     regTarget: 0,
     addTarget: 0,
+    totalMasuk: 0,
+    regMasuk: 0,
+    addMasuk: 0,
+    totalPulang: 0,
+    regPulang: 0,
+    addPulang: 0,
+    totalTumbang: 0,
+    regTumbang: 0,
+    addTumbang: 0,
+    totalSelisih: 0,
+    regSelisih: 0,
+    addSelisih: 0,
     overallFulfillment: 0,
     overallRetention: 0,
   };
@@ -111,7 +109,7 @@ export default function LaporanTab({
       <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-l-4 border-emerald-500 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">FASE 4: Laporan & Validasi Invoice Vendor</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Pantau performa pemenuhan target vendor (Fulfillment), tingkat retensi pekerja sampai selesai shift, serta validasi audit selisih sebelum menandatangani invoice penagihan.
+          Rekapitulasi terpadu per vendor dan shift. Validasi audit integritas kuota Regular & Additional sebelum penagihan invoice.
         </p>
       </div>
 
@@ -119,7 +117,7 @@ export default function LaporanTab({
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           
-          {/* Form Filter (Tanggal Mulai, Tanggal Selesai, Vendor) */}
+          {/* Form Filter */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Filter Tanggal Mulai */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs">
@@ -145,22 +143,22 @@ export default function LaporanTab({
               />
             </div>
 
-            {/* Filter Pilihan Vendor */}
+            {/* Filter Vendor (DENGAN WARNA TEKS GELAP KONTRAS TINGGI) */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs">
               <Building2 className="w-3.5 h-3.5 text-slate-500" />
               <select
                 value={selectedVendorId}
                 onChange={(e) => setSelectedVendorId(e.target.value)}
-                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                className="bg-transparent font-extrabold text-slate-900 focus:outline-none cursor-pointer"
               >
-                <option value="ALL">Semua Vendor</option>
+                <option value="ALL" className="text-slate-900 bg-white font-bold">Semua Vendor</option>
                 {vendors.map((v) => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
+                  <option key={v.id} value={v.id} className="text-slate-900 bg-white font-bold">{v.name}</option>
                 ))}
               </select>
             </div>
 
-            {/* Tombol Refresh Manual */}
+            {/* Tombol Refresh */}
             <button
               onClick={fetchStats}
               disabled={isLoading}
@@ -184,62 +182,61 @@ export default function LaporanTab({
         </div>
       </div>
 
-      {/* 3. KARTU STATISTIK KPI UTAMA */}
+      {/* 3. KARTU STATISTIK KPI UTAMA (TERMASUK BREAKDOWN REG & ADD) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* KPI 1: Target Kebutuhan Manpower */}
+        {/* KPI 1: Target Kebutuhan */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Total Target</span>
             <Users className="w-4 h-4 text-sky-500" />
           </div>
           <p className="text-2xl font-black text-slate-900">{totals.totalTarget} <span className="text-xs font-normal text-slate-400">Org</span></p>
-          <div className="mt-2 text-[10px] text-slate-500 flex justify-between border-t border-slate-100 pt-1.5">
+          <div className="mt-2 text-[10px] text-slate-500 flex justify-between border-t border-slate-100 pt-1.5 font-bold">
             <span>Reg: <strong className="text-blue-600">{totals.regTarget}</strong></span>
             <span>Add: <strong className="text-amber-600">{totals.addTarget}</strong></span>
           </div>
         </div>
 
-        {/* KPI 2: Realisasi Masuk & % Fulfillment */}
+        {/* KPI 2: Realisasi Masuk */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Aktual Masuk</span>
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
           <p className="text-2xl font-black text-emerald-600">{totals.totalMasuk} <span className="text-xs font-normal text-slate-400">Org</span></p>
-          <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5">
-            <span>Fulfillment:</span>
-            <strong className={`font-extrabold ${totals.overallFulfillment >= 95 ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {totals.overallFulfillment}%
-            </strong>
+          <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5 font-bold">
+            <span>Fulfillment: <strong className="text-emerald-700">{totals.overallFulfillment}%</strong></span>
+            <span>(R:{totals.regMasuk} | A:{totals.addMasuk})</span>
           </div>
         </div>
 
-        {/* KPI 3: Pulang Utuh & Retention Rate */}
+        {/* KPI 3: Pulang Utuh */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Pulang Utuh</span>
             <CheckCircle2 className="w-4 h-4 text-blue-500" />
           </div>
           <p className="text-2xl font-black text-blue-600">{totals.totalPulang} <span className="text-xs font-normal text-slate-400">Org</span></p>
-          <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5">
-            <span>Ketahanan:</span>
-            <strong className="text-blue-600 font-extrabold">{totals.overallRetention}%</strong>
+          <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between border-t border-slate-100 pt-1.5 font-bold">
+            <span>Retensi: <strong className="text-blue-600">{totals.overallRetention}%</strong></span>
+            <span>(R:{totals.regPulang} | A:{totals.addPulang})</span>
           </div>
         </div>
 
-        {/* KPI 4: Pekerja Tumbang (Sakit / Klinik) */}
+        {/* KPI 4: Tumbang Sakit */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Total Tumbang</span>
             <HeartPulse className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-2xl font-black text-amber-600">{totals.totalTumbang} <span className="text-xs font-normal text-slate-400">Org</span></p>
-          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5">
-            <span>Cedera & P3K Klinik</span>
+          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 flex justify-between font-bold">
+            <span>Reg: {totals.regTumbang}</span>
+            <span>Add: {totals.addTumbang}</span>
           </div>
         </div>
 
-        {/* KPI 5: Pekerja Kabur / Selisih Tanpa Izin */}
+        {/* KPI 5: Selisih Kabur */}
         <div className={`rounded-2xl p-4 border shadow-xs ${totals.totalSelisih > 0 ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Selisih / Kabur</span>
@@ -248,17 +245,17 @@ export default function LaporanTab({
           <p className={`text-2xl font-black ${totals.totalSelisih > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
             {totals.totalSelisih} <span className="text-xs font-normal text-slate-400">Org</span>
           </p>
-          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5">
-            <span>{totals.totalSelisih > 0 ? '⚠️ Potensi Bocor Tagihan' : '✔ Integritas Bersih'}</span>
+          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 font-bold">
+            <span>{totals.totalSelisih > 0 ? `⚠️ R:${totals.regSelisih} | A:${totals.addSelisih}` : '✔ Integritas Bersih'}</span>
           </div>
         </div>
       </div>
 
-      {/* 4. TABEL DETAIL DATA REKAP */}
+      {/* 4. TABEL DETAIL DATA REKAP (1 BARIS PER VENDOR PER SHIFT) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <h3 className="font-bold text-sm text-slate-900">
-            Daftar Detail Operasional ({records.length} Plotingan Ditemukan)
+            Daftar Detail Operasional ({records.length} Plotingan Vendor)
           </h3>
           <span className="text-xs text-slate-400">Periode: {startDate} s.d. {endDate}</span>
         </div>
@@ -275,11 +272,10 @@ export default function LaporanTab({
                   <th className="py-3 px-3">Tanggal</th>
                   <th className="py-3 px-3">Vendor</th>
                   <th className="py-3 px-3">Shift</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3 text-center">Target</th>
-                  <th className="py-3 px-3 text-center">Masuk</th>
+                  <th className="py-3 px-3 text-center">Target (Reg / Add)</th>
+                  <th className="py-3 px-3 text-center">Masuk (Reg / Add)</th>
                   <th className="py-3 px-3 text-center">Fulfill (%)</th>
-                  <th className="py-3 px-3 text-center">Pulang</th>
+                  <th className="py-3 px-3 text-center">Pulang (Reg / Add)</th>
                   <th className="py-3 px-3 text-center">Tumbang</th>
                   <th className="py-3 px-3 text-center">Selisih</th>
                   <th className="py-3 px-3 text-center">Status Audit</th>
@@ -287,44 +283,93 @@ export default function LaporanTab({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {records.map((r: any) => {
-                  const masuk = r.attendanceIn?.actualHeadcount || 0;
+                  const targetReg = r.targetRegular ?? (r.status === 'REGULAR' ? r.targetHeadcount : 0);
+                  const targetAdd = r.targetAdditional ?? (r.status === 'ADDITIONAL' ? r.targetHeadcount : 0);
+                  const targetTotal = r.targetHeadcount;
+
+                  const masukTotal = r.attendanceIn?.actualHeadcount || 0;
+                  const masukReg = r.attendanceIn?.actualRegular ?? r.attendanceIn?.actualHeadcount ?? 0;
+                  const masukAdd = r.attendanceIn?.actualAdditional ?? 0;
+
                   const outRecord = r.attendanceIn?.attendanceOut;
-                  const pulang = outRecord?.pulangHeadcount || 0;
-                  const tumbang = outRecord?.tumbangHeadcount || 0;
+                  const pulangTotal = outRecord?.pulangHeadcount || 0;
+                  const pulangReg = outRecord?.pulangRegular ?? outRecord?.pulangHeadcount ?? 0;
+                  const pulangAdd = outRecord?.pulangAdditional ?? 0;
+
+                  const tumbangTotal = outRecord?.tumbangHeadcount || 0;
                   const selisih = outRecord?.selisihCount || 0;
-                  const fulfillRate = r.targetHeadcount > 0 ? Math.round((masuk / r.targetHeadcount) * 100) : 0;
+                  const fulfillRate = targetTotal > 0 ? Math.round((masukTotal / targetTotal) * 100) : 0;
                   const isClosed = !!outRecord;
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                      {/* Tanggal */}
                       <td className="py-3 px-3 font-semibold text-slate-900">{r.date}</td>
-                      <td className="py-3 px-3 font-bold text-slate-800">{r.vendor.name}</td>
-                      <td className="py-3 px-3 text-slate-600">{r.shift.name}</td>
+                      
+                      {/* Nama Vendor */}
+                      <td className="py-3 px-3 font-extrabold text-slate-800">{r.vendor.name}</td>
+                      
+                      {/* Shift & Jam Kerja */}
                       <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.status === 'REGULAR' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                          {r.status}
-                        </span>
+                        <div className="flex items-center gap-1 font-semibold text-slate-700">
+                          {r.shift.name.toLowerCase().includes('pagi') ? (
+                            <Sun className="w-3 h-3 text-amber-500" />
+                          ) : (
+                            <Moon className="w-3 h-3 text-indigo-500" />
+                          )}
+                          <span>{r.shift.name}</span>
+                        </div>
+                        {r.workingHours && (
+                          <span className="text-[10px] text-slate-400 block">{r.workingHours}</span>
+                        )}
                       </td>
-                      <td className="py-3 px-3 text-center font-bold text-slate-900">{r.targetHeadcount}</td>
+
+                      {/* Target (Reg / Add / Total) */}
+                      <td className="py-3 px-3 text-center">
+                        <span className="font-extrabold text-slate-900 block">{targetTotal} Org</span>
+                        <span className="text-[10px] text-slate-400">R:{targetReg} &bull; A:{targetAdd}</span>
+                      </td>
+
+                      {/* Masuk (Reg / Add / Total) */}
                       <td className="py-3 px-3 text-center font-bold text-emerald-600">
-                        {r.attendanceIn ? masuk : '-'}
+                        {r.attendanceIn ? (
+                          <>
+                            <span className="block">{masukTotal} Org</span>
+                            <span className="text-[10px] text-slate-500 font-normal">R:{masukReg} &bull; A:{masukAdd}</span>
+                          </>
+                        ) : '-'}
                       </td>
+
+                      {/* Fulfillment Rate */}
                       <td className="py-3 px-3 text-center font-bold">
                         {r.attendanceIn ? `${fulfillRate}%` : '-'}
                       </td>
+
+                      {/* Pulang (Reg / Add / Total) */}
                       <td className="py-3 px-3 text-center font-bold text-blue-600">
-                        {isClosed ? pulang : '-'}
+                        {isClosed ? (
+                          <>
+                            <span className="block">{pulangTotal} Org</span>
+                            <span className="text-[10px] text-slate-500 font-normal">R:{pulangReg} &bull; A:{pulangAdd}</span>
+                          </>
+                        ) : '-'}
                       </td>
+
+                      {/* Tumbang */}
                       <td className="py-3 px-3 text-center font-bold text-amber-600">
-                        {isClosed ? tumbang : '-'}
+                        {isClosed ? `${tumbangTotal} Org` : '-'}
                       </td>
+
+                      {/* Selisih */}
                       <td className="py-3 px-3 text-center font-bold">
                         {isClosed ? (
-                          <span className={selisih > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded' : 'text-emerald-600'}>
+                          <span className={selisih > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-emerald-600'}>
                             {selisih}
                           </span>
                         ) : '-'}
                       </td>
+
+                      {/* Status Audit */}
                       <td className="py-3 px-3 text-center">
                         {isClosed ? (
                           outRecord.isBalanced ? (
@@ -360,4 +405,3 @@ export default function LaporanTab({
     </div>
   );
 }
-

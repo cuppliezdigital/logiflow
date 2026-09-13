@@ -2,11 +2,13 @@
 
 // ============================================================================
 // KOMPONEN TAB 2: ABSEN MASUK & SERAH TERIMA PASUKAN (APEL SHIFT)
-// Fitur:
-// 1. Kartu Status Kehadiran per Plotingan Vendor
-// 2. Kalkulasi Realtime % Fulfillment Awal (Hadir Fisik vs Target)
-// 3. Upload / Jepret Foto Barisan Apel lewat Kamera HP atau File Gambar
-// 4. Modal Form Absen Masuk & Integrasi Server Action submitAbsenMasuk
+// Fitur Baru:
+// 1. 1 Kartu Terpadu per Vendor per Shift (mencakup Regular & Additional).
+// 2. Input Hadir Fisik Terpisah: Hadir Regular & Hadir Additional.
+// 3. Dua Slot Upload Foto Apel Terpisah:
+//    - 📸 Slot Foto Barisan Apel REGULAR
+//    - 📸 Slot Foto Barisan Apel ADDITIONAL (hanya muncul jika ada target additional)
+// 4. Kalkulasi Realtime % Fulfillment Awal Gabungan.
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -20,7 +22,8 @@ import {
   X,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Layers
 } from 'lucide-react';
 import { submitAbsenMasuk } from '@/app/actions';
 
@@ -39,48 +42,69 @@ export default function AbsenMasukTab({
   // --------------------------------------------------------------------------
   // STATE MANAGEMENT
   // --------------------------------------------------------------------------
-  // Menyimpan objek plotingan yang sedang dipilih untuk diisi absensi masuknya
   const [selectedPlotingan, setSelectedPlotingan] = useState<any>(null);
-  // Visibilitas modal dialog absen masuk
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Jumlah fisik orang yang hadir di apel
-  const [actualHeadcount, setActualHeadcount] = useState<number>(0);
-  // Catatan serah terima / kondisi apel
+
+  // State hadir fisik terpisah
+  const [actualRegular, setActualRegular] = useState<number>(0);
+  const [actualAdditional, setActualAdditional] = useState<number>(0);
   const [notes, setNotes] = useState('');
-  // URL untuk menampilkan preview foto yang dipilih sebelum diunggah
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  // File binary gambar yang dipilih dari input kamera / file
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  // Indikator status loading saat tombol simpan ditekan
+
+  // State Foto Barisan Regular
+  const [photoRegPreview, setPhotoRegPreview] = useState<string | null>(null);
+  const [photoRegFile, setPhotoRegFile] = useState<File | null>(null);
+
+  // State Foto Barisan Additional
+  const [photoAddPreview, setPhotoAddPreview] = useState<string | null>(null);
+  const [photoAddFile, setPhotoAddFile] = useState<File | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
   // --------------------------------------------------------------------------
 
-  // Membuka modal absen masuk untuk plotingan tertentu
+  // Membuka modal absen masuk
   const handleOpenModal = (plot: any) => {
     setSelectedPlotingan(plot);
     const existing = plot.attendanceIn;
-    // Jika sudah pernah diisi, muat data sebelumnya. Jika belum, default ke targetHeadcount
-    setActualHeadcount(existing ? existing.actualHeadcount : plot.targetHeadcount);
+
+    const targetReg = plot.targetRegular ?? (plot.status === 'REGULAR' ? plot.targetHeadcount : 0);
+    const targetAdd = plot.targetAdditional ?? (plot.status === 'ADDITIONAL' ? plot.targetHeadcount : 0);
+
+    // Muat data jika sudah pernah diinput, atau default ke target kuota
+    setActualRegular(existing ? (existing.actualRegular ?? existing.actualHeadcount) : targetReg);
+    setActualAdditional(existing ? (existing.actualAdditional ?? 0) : targetAdd);
     setNotes(existing ? existing.notes || '' : '');
-    setPhotoPreview(existing ? existing.photoInUrl || null : null);
-    setPhotoFile(null);
+
+    // Set foto preview jika ada
+    setPhotoRegPreview(existing?.photoInRegularUrl || existing?.photoInUrl || null);
+    setPhotoAddPreview(existing?.photoInAdditionalUrl || null);
+
+    setPhotoRegFile(null);
+    setPhotoAddFile(null);
     setIsModalOpen(true);
   };
 
-  // Menangani pemilihan foto dari kamera atau galeri file
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload Foto Apel Regular
+  const handlePhotoRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoFile(file);
-      const url = URL.createObjectURL(file);
-      setPhotoPreview(url);
+      setPhotoRegFile(file);
+      setPhotoRegPreview(URL.createObjectURL(file));
     }
   };
 
-  // Mengirim data absensi masuk ke server
+  // Upload Foto Apel Additional
+  const handlePhotoAddChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPhotoAddFile(file);
+      setPhotoAddPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Submit data absensi masuk terpadu ke server
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlotingan) return;
@@ -89,15 +113,20 @@ export default function AbsenMasukTab({
     try {
       const formData = new FormData();
       formData.append('plotinganId', selectedPlotingan.id);
-      formData.append('actualHeadcount', actualHeadcount.toString());
+      formData.append('actualRegular', actualRegular.toString());
+      formData.append('actualAdditional', actualAdditional.toString());
       formData.append('notes', notes);
-      if (photoFile) {
-        formData.append('photoIn', photoFile);
+
+      if (photoRegFile) {
+        formData.append('photoInRegular', photoRegFile);
+      }
+      if (photoAddFile) {
+        formData.append('photoInAdditional', photoAddFile);
       }
 
       await submitAbsenMasuk(formData);
-      setIsModalOpen(false); // Tutup modal
-      onRefresh();           // Refresh data tampilan
+      setIsModalOpen(false);
+      onRefresh();
     } catch (err: any) {
       alert(err.message || 'Gagal menyimpan absensi masuk.');
     } finally {
@@ -105,10 +134,12 @@ export default function AbsenMasukTab({
     }
   };
 
-  // Target orang dari plotingan yang sedang aktif di modal
-  const target = selectedPlotingan ? selectedPlotingan.targetHeadcount : 0;
-  // Hitung persentase pemenuhan kuota awal di modal
-  const fulfillment = target > 0 ? Math.round((actualHeadcount / target) * 100) : 0;
+  // Kalkulasi target & total di modal
+  const targetRegModal = selectedPlotingan ? (selectedPlotingan.targetRegular ?? (selectedPlotingan.status === 'REGULAR' ? selectedPlotingan.targetHeadcount : 0)) : 0;
+  const targetAddModal = selectedPlotingan ? (selectedPlotingan.targetAdditional ?? (selectedPlotingan.status === 'ADDITIONAL' ? selectedPlotingan.targetHeadcount : 0)) : 0;
+  const totalTargetModal = targetRegModal + targetAddModal;
+  const totalActualModal = actualRegular + actualAdditional;
+  const fulfillmentModal = totalTargetModal > 0 ? Math.round((totalActualModal / totalTargetModal) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -117,13 +148,13 @@ export default function AbsenMasukTab({
       <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-l-4 border-amber-500 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">FASE 2: Absen Masuk & Serah Terima Pasukan</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Diisi saat apel/briefing awal shift. Catat jumlah orang fisik yang hadir dan unggah bukti foto barisan.
+          Diisi saat apel/briefing awal shift. Catat kehadiran fisik orang dan unggah foto barisan terpisah untuk pasukan 
+          <span className="font-bold text-blue-700"> Regular</span> dan <span className="font-bold text-amber-700">Additional</span>.
         </p>
       </div>
 
-      {/* 2. DAFTAR KARTU PLOTINGAN UNTUK ABSEN MASUK */}
+      {/* 2. DAFTAR KARTU PLOTINGAN (1 KARTU PER VENDOR PER SHIFT) */}
       {plotingans.length === 0 ? (
-        // State kosong jika belum ada plotingan di Tab 1
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
           <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p className="text-base font-bold text-slate-700">Belum Ada Plotingan untuk Absen Masuk</p>
@@ -132,12 +163,16 @@ export default function AbsenMasukTab({
           </p>
         </div>
       ) : (
-        // Grid kartu untuk setiap vendor dan shift kerja
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {plotingans.map((p) => {
             const hasCheckedIn = !!p.attendanceIn;
-            const actual = p.attendanceIn?.actualHeadcount || 0;
-            const rate = Math.round((actual / p.targetHeadcount) * 100);
+            const actualTotal = p.attendanceIn?.actualHeadcount || 0;
+            const actualReg = p.attendanceIn?.actualRegular ?? 0;
+            const actualAdd = p.attendanceIn?.actualAdditional ?? 0;
+            
+            const targetReg = p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0);
+            const targetAdd = p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0);
+            const rate = Math.round((actualTotal / p.targetHeadcount) * 100);
 
             return (
               <div
@@ -169,51 +204,72 @@ export default function AbsenMasukTab({
                       </>
                     )}
                   </span>
-                  {/* Badge Regular vs Additional */}
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                      p.status === 'REGULAR'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
-                    {p.status}
+                  
+                  {/* Badge Shift Pagi / Malam */}
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-xs">
+                    {p.shift.name.toLowerCase().includes('pagi') ? (
+                      <Sun className="w-3 h-3 text-amber-500" />
+                    ) : (
+                      <Moon className="w-3 h-3 text-indigo-500" />
+                    )}
+                    {p.shift.name}
                   </span>
                 </div>
 
                 <div className="p-4 space-y-3">
-                  {/* Info Vendor & Shift */}
+                  {/* Info Vendor & Jam Kerja */}
                   <div>
                     <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-1.5">
                       <Building2 className="w-4 h-4 text-slate-400" />
                       {p.vendor.name}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                      {p.shift.name.toLowerCase().includes('pagi') ? (
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                      ) : (
-                        <Moon className="w-3.5 h-3.5 text-indigo-500" />
-                      )}
-                      <span className="font-bold text-slate-700">{p.shift.name}</span>
-                      {p.workingHours && <span className="text-slate-400">&bull; {p.workingHours}</span>}
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {p.workingHours ? `Jam Kerja: ${p.workingHours}` : 'Jam Kerja Fleksibel'}
                     </p>
                   </div>
 
-                  {/* Komparasi Target vs Realisasi Masuk */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <div>
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase">Target Ploting</span>
-                      <p className="text-lg font-black text-slate-700">{p.targetHeadcount} <span className="text-xs font-normal">Org</span></p>
+                  {/* Komparasi Target vs Realisasi Masuk (Regular & Additional) */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
+                    {/* Baris Regular */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-blue-700 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Pasukan Regular:
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {hasCheckedIn ? (
+                          <strong className="text-emerald-600 font-extrabold">{actualReg}</strong>
+                        ) : '-'}{' '}
+                        / {targetReg} Org
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase">Realisasi Masuk</span>
-                      <p className={`text-lg font-black ${hasCheckedIn ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {hasCheckedIn ? `${actual} Org` : '-'}
-                      </p>
+
+                    {/* Baris Additional (jika ada) */}
+                    {targetAdd > 0 && (
+                      <div className="flex items-center justify-between text-xs border-t border-slate-200/60 pt-1.5">
+                        <span className="font-bold text-amber-700 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          Pasukan Additional:
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {hasCheckedIn ? (
+                            <strong className="text-amber-600 font-extrabold">{actualAdd}</strong>
+                          ) : '-'}{' '}
+                          / {targetAdd} Org
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Total */}
+                    <div className="flex items-center justify-between text-xs border-t border-slate-200 pt-1.5 font-extrabold">
+                      <span className="text-slate-600 uppercase">Total Headcount:</span>
+                      <span className={hasCheckedIn ? 'text-emerald-700' : 'text-slate-500'}>
+                        {hasCheckedIn ? `${actualTotal} Org` : '-'} (Target: {p.targetHeadcount} Org)
+                      </span>
                     </div>
                   </div>
 
-                  {/* Indikator % Fulfillment Awal & Foto Barisan Apel */}
+                  {/* Indikator Fulfillment & Preview Foto Terpisah */}
                   {hasCheckedIn && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
@@ -227,23 +283,40 @@ export default function AbsenMasukTab({
                               : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {rate}% {rate >= 100 ? '⭐ Target Tercapai' : rate < 80 ? '⚠️ Kurang Orang' : ''}
+                          {rate}% {rate >= 100 ? '⭐ Lengkap' : '⚠️ Kurang'}
                         </span>
                       </div>
 
-                      {/* Tampilan Foto Bukti Apel */}
-                      {p.attendanceIn?.photoInUrl && (
-                        <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
-                          <img
-                            src={p.attendanceIn.photoInUrl}
-                            alt="Foto Briefing Masuk"
-                            className="w-full h-full object-cover"
-                          />
-                          <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
-                            Foto Apel Terlampir
-                          </span>
-                        </div>
-                      )}
+                      {/* Thumbnails Foto Apel Reguler & Additional */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {/* Foto Regular */}
+                        {p.attendanceIn?.photoInRegularUrl && (
+                          <div className="relative rounded-lg overflow-hidden border border-slate-200 h-20 bg-slate-100">
+                            <img
+                              src={p.attendanceIn.photoInRegularUrl}
+                              alt="Foto Apel Regular"
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-0 inset-x-0 bg-blue-900/80 text-white text-[9px] font-bold text-center py-0.5">
+                              Foto Regular
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Foto Additional */}
+                        {p.attendanceIn?.photoInAdditionalUrl && (
+                          <div className="relative rounded-lg overflow-hidden border border-slate-200 h-20 bg-slate-100">
+                            <img
+                              src={p.attendanceIn.photoInAdditionalUrl}
+                              alt="Foto Apel Additional"
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-0 inset-x-0 bg-amber-900/80 text-white text-[9px] font-bold text-center py-0.5">
+                              Foto Additional
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -266,7 +339,7 @@ export default function AbsenMasukTab({
         </div>
       )}
 
-      {/* 3. MODAL FORM INPUT ABSEN MASUK */}
+      {/* 3. MODAL FORM INPUT ABSEN MASUK TERPADU */}
       {isModalOpen && selectedPlotingan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
@@ -274,7 +347,7 @@ export default function AbsenMasukTab({
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-extrabold text-lg text-slate-900">Form Absen Masuk</h3>
-                <p className="text-xs text-slate-500">{selectedPlotingan.vendor.name} &middot; {selectedPlotingan.shift.name}</p>
+                <p className="text-xs text-slate-500">{selectedPlotingan.vendor.name} &bull; {selectedPlotingan.shift.name}</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -287,95 +360,154 @@ export default function AbsenMasukTab({
             {/* Form Input */}
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               
-              {/* Target Plotingan & Input Jumlah Kehadiran Fisik */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Target Plotingan:</span>
-                  <span className="text-sm font-black text-slate-900">{target} Orang</span>
+              {/* Input Hadir Fisik Regular vs Additional */}
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    Realisasi Orang Hadir (Fisik Apel)
+                  </span>
+                  <span className="text-xs font-black text-slate-800">
+                    Target: {totalTargetModal} Org
+                  </span>
                 </div>
 
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Total Orang Masuk Hadir (Fisik Apel)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={actualHeadcount}
-                  onChange={(e) => setActualHeadcount(parseInt(e.target.value) || 0)}
-                  className="w-full border-2 border-amber-400 bg-white rounded-xl px-4 py-2.5 text-xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Hadir Regular */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-blue-700 uppercase mb-1">
+                      Hadir Regular (Target: {targetRegModal})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={actualRegular}
+                      onChange={(e) => setActualRegular(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-blue-400 bg-white rounded-xl px-3 py-2 text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Hadir Additional */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-700 uppercase mb-1">
+                      Hadir Additional (Target: {targetAddModal})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={actualAdditional}
+                      onChange={(e) => setActualAdditional(parseInt(e.target.value) || 0)}
+                      className="w-full border-2 border-amber-400 bg-white rounded-xl px-3 py-2 text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
 
                 {/* Indikator Realtime Live Fulfillment */}
-                <div className="mt-3 flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 text-xs">
+                <div className="mt-2 flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 text-xs">
                   <span className="font-semibold text-slate-600 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    Kalkulasi Fulfillment:
+                    Total Masuk & Fulfillment:
                   </span>
                   <span
                     className={`font-black px-2 py-0.5 rounded ${
-                      fulfillment >= 95
+                      fulfillmentModal >= 95
                         ? 'bg-emerald-100 text-emerald-800'
-                        : fulfillment >= 80
+                        : fulfillmentModal >= 80
                         ? 'bg-amber-100 text-amber-800'
                         : 'bg-rose-100 text-rose-800'
                     }`}
                   >
-                    {fulfillment}% ({actualHeadcount} / {target})
+                    {totalActualModal} Org ({fulfillmentModal}%)
                   </span>
                 </div>
               </div>
 
-              {/* Upload Foto Barisan Apel (Kamera / File Picker) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Foto Barisan / Briefing Apel
-                </label>
-                <div className="space-y-2">
-                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-4 hover:border-amber-500 hover:bg-amber-50/20 transition-all cursor-pointer">
-                    <Camera className="w-8 h-8 text-amber-500 mb-1" />
-                    <span className="text-xs font-bold text-slate-700">Ambil Foto Lewat Kamera / Galeri</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">Wajib foto barisan orang yang hadir</span>
+              {/* DUA SLOT FOTO TERPISAH: REGULAR & ADDITIONAL */}
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-700 uppercase">Dokumentasi Foto Barisan Apel</p>
+
+                {/* 1. Slot Foto Apel REGULAR */}
+                <div className="p-3 bg-blue-50/40 rounded-xl border border-blue-200/80 space-y-2">
+                  <label className="block text-xs font-bold text-blue-900">
+                    1. Foto Barisan Pasukan REGULAR
+                  </label>
+                  <label className="flex items-center gap-2 border border-dashed border-blue-300 rounded-lg p-2.5 bg-white hover:bg-blue-50/50 transition-colors cursor-pointer text-xs font-semibold text-blue-700">
+                    <Camera className="w-4 h-4 text-blue-600" />
+                    <span>Ambil Foto Barisan Regular</span>
                     <input
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      onChange={handleFileChange}
+                      onChange={handlePhotoRegChange}
                       className="hidden"
                     />
                   </label>
 
-                  {/* Preview Foto Jika Sudah Dipilih */}
-                  {photoPreview && (
-                    <div className="relative rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-100">
-                      <img src={photoPreview} alt="Preview Foto Apel" className="w-full h-48 object-cover" />
+                  {photoRegPreview && (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
+                      <img src={photoRegPreview} alt="Preview Regular" className="w-full h-full object-cover" />
                       <button
                         type="button"
-                        onClick={() => { setPhotoPreview(null); setPhotoFile(null); }}
-                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 text-xs shadow-md cursor-pointer"
-                        title="Hapus foto ini"
+                        onClick={() => { setPhotoRegPreview(null); setPhotoRegFile(null); }}
+                        className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer"
+                        title="Hapus Foto"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}
                 </div>
+
+                {/* 2. Slot Foto Apel ADDITIONAL (Hanya jika kuota target additional > 0) */}
+                {targetAddModal > 0 && (
+                  <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-200/80 space-y-2">
+                    <label className="block text-xs font-bold text-amber-900">
+                      2. Foto Barisan Pasukan ADDITIONAL (Lembur / Peak)
+                    </label>
+                    <label className="flex items-center gap-2 border border-dashed border-amber-300 rounded-lg p-2.5 bg-white hover:bg-amber-50/50 transition-colors cursor-pointer text-xs font-semibold text-amber-700">
+                      <Camera className="w-4 h-4 text-amber-600" />
+                      <span>Ambil Foto Barisan Additional</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoAddChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {photoAddPreview && (
+                      <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
+                        <img src={photoAddPreview} alt="Preview Additional" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => { setPhotoAddPreview(null); setPhotoAddFile(null); }}
+                          className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer"
+                          title="Hapus Foto"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Catatan Apel / Masuk */}
+              {/* Catatan Apel */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Catatan Apel (Opsional)</label>
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Misal: 2 orang terlambat 10 menit, seragam lengkap..."
-                  className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Misal: 1 orang regular terlambat 15 menit..."
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
 
               {/* Tombol Aksi */}
-              <div className="flex gap-3 pt-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
