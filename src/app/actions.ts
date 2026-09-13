@@ -228,6 +228,123 @@ export async function deletePlotingan(id: string) {
   return { success: true };
 }
 
+// ============================================================================
+// FUNGSI BARU: SIMPAN PLOTINGAN SEKALIGUS (BATCH UPSERT MASSAL)
+// Memungkinkan supervisor gudang menginput seluruh vendor dalam 1 kali simpan.
+// Jika targetHeadcount > 0:
+// - Jika belum ada plotingan di (date, vendorId, shiftId) -> Buat baru (Create)
+// - Jika sudah ada plotingan -> Perbarui kuota targetHeadcount & jam/catatan (Update)
+// Vendor yang targetHeadcount = 0 / kosong dilewati agar tidak menjadi data sampah.
+// ============================================================================
+export async function saveBatchPlotingan(payload: {
+  date: string;
+  shiftId: string;
+  defaultWorkingHours?: string;
+  items: Array<{
+    vendorId: string;
+    targetHeadcount: number;
+    workingHours?: string;
+    notes?: string;
+  }>;
+}) {
+  const { date, shiftId, defaultWorkingHours, items } = payload;
+
+  if (!date || !shiftId || !items || items.length === 0) {
+    return { success: false, error: 'Data batch plotingan tidak lengkap.' };
+  }
+
+  // Filter hanya item yang target headcount-nya lebih dari 0
+  const validItems = items.filter((item) => Number(item.targetHeadcount) > 0);
+
+  if (validItems.length === 0) {
+    return { success: false, error: 'Minimal harus ada 1 vendor dengan target kuota lebih dari 0.' };
+  }
+
+  try {
+    let savedCount = 0;
+
+    // Gunakan transaction untuk memastikan integritas data
+    await prisma.$transaction(async (tx) => {
+      for (const item of validItems) {
+        const count = Math.max(0, parseInt(item.targetHeadcount as any, 10) || 0);
+        if (count <= 0) continue;
+
+        const effectiveHours = item.workingHours?.trim() || defaultWorkingHours?.trim() || null;
+        const effectiveNotes = item.notes?.trim() || null;
+
+        // Cek apakah sudah ada plotingan untuk vendor & shift ini pada tanggal yang sama
+        const existing = await tx.plotingan.findFirst({
+          where: {
+            date,
+            vendorId: item.vendorId,
+            shiftId,
+          },
+        });
+
+        if (existing) {
+          // Update data kuota yang sudah ada
+          await tx.plotingan.update({
+            where: { id: existing.id },
+            data: {
+              targetHeadcount: count,
+              workingHours: effectiveHours,
+              notes: effectiveNotes,
+            },
+          });
+        } else {
+          // Buat entri plotingan baru
+          await tx.plotingan.create({
+            data: {
+              date,
+              vendorId: item.vendorId,
+              shiftId,
+              targetRegular: 0,
+              targetAdditional: 0,
+              targetHeadcount: count,
+              status: 'MIXED',
+              workingHours: effectiveHours,
+              notes: effectiveNotes,
+            },
+          });
+        }
+        savedCount++;
+      }
+    });
+
+    revalidatePath('/');
+    return { success: true, savedCount };
+  } catch (error: any) {
+    console.error('Error saat simpan batch plotingan:', error);
+    return { success: false, error: error.message || 'Gagal menyimpan data plotingan massal.' };
+  }
+}
+
+// ============================================================================
+// FUNGSI BARU: SALIN PLOTINGAN DARI H-1 (ATAU TANGGAL TERTENTU)
+// Mengambil konfigurasi kuota vendor dari tanggal sebelumnya untuk shift terkait.
+// Hasilnya dikembalikan ke frontend agar user bisa meninjau dan mengedit sebelum disimpan.
+// ============================================================================
+export async function getPlotinganForCopy(sourceDate: string, shiftId: string) {
+  try {
+    const list = await prisma.plotingan.findMany({
+      where: {
+        date: sourceDate,
+        shiftId: shiftId,
+      },
+      select: {
+        vendorId: true,
+        targetHeadcount: true,
+        workingHours: true,
+        notes: true,
+      },
+    });
+    return { success: true, data: list };
+  } catch (error: any) {
+    console.error('Error saat mengambil plotingan untuk disalin:', error);
+    return { success: false, error: 'Gagal mengambil data dari tanggal kemarin.' };
+  }
+}
+
 // ----------------------------------------------------------------------------
 // 4. MODUL ABSEN MASUK: Multi-Foto per Bagian Gudang + Validasi Ketat Wajib Foto
 // ----------------------------------------------------------------------------

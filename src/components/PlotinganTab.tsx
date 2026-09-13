@@ -24,9 +24,21 @@ import {
   Settings,
   Layers,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  Zap,
+  Copy,
+  RotateCcw,
+  Loader2,
+  Sparkles,
+  Check
 } from 'lucide-react';
-import { createPlotingan, updatePlotingan, deletePlotingan } from '@/app/actions';
+import { 
+  createPlotingan, 
+  updatePlotingan, 
+  deletePlotingan,
+  saveBatchPlotingan,
+  getPlotinganForCopy 
+} from '@/app/actions';
 import VendorModal from '@/components/VendorModal';
 
 // Definisi properti input untuk komponen PlotinganTab
@@ -54,6 +66,21 @@ export default function PlotinganTab({
   const [isModalOpen, setIsModalOpen] = useState(false);
   // Mengatur visibilitas modal kelola vendor mitra
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+
+  // STATE FITUR BARU: Input Plotingan Sekaligus (Batch Massal)
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchShiftId, setBatchShiftId] = useState(shifts[0]?.id || '');
+  const [batchDefaultHours, setBatchDefaultHours] = useState('');
+  const [batchRows, setBatchRows] = useState<{
+    [vendorId: string]: {
+      targetHeadcount: number;
+      workingHours: string;
+      notes: string;
+    };
+  }>({});
+  const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Menyimpan data plotingan yang sedang diedit (null jika mode tambah baru)
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -109,6 +136,167 @@ export default function PlotinganTab({
     if (confirm('Yakin ingin menghapus plotingan ini? Data absensi terkait juga akan terhapus.')) {
       await deletePlotingan(id);
       onRefresh();
+    }
+  };
+
+  // ============================================================================
+  // FUNGSI BARU: INISIALISASI / BUKA MODAL INPUT SEKALIGUS (MASSAL)
+  // Menyiapkan baris untuk setiap vendor aktif dengan nilai existing atau default 0
+  // ============================================================================
+  const handleOpenBatchModal = (targetShiftId?: string) => {
+    const activeShiftId = targetShiftId || batchShiftId || shifts[0]?.id || '';
+    setBatchShiftId(activeShiftId);
+    setCopyFeedback(null);
+    setBatchDefaultHours('');
+
+    // Siapkan baris data per vendor aktif
+    const initialRows: { [vendorId: string]: { targetHeadcount: number; workingHours: string; notes: string } } = {};
+    vendors.forEach((v) => {
+      // Cari apakah vendor ini sudah punya plotingan pada tanggal & shift yang dipilih
+      const existing = plotingans.find((p) => p.vendorId === v.id && p.shiftId === activeShiftId);
+      initialRows[v.id] = {
+        targetHeadcount: existing ? existing.targetHeadcount : 0,
+        workingHours: existing?.workingHours || '',
+        notes: existing?.notes || '',
+      };
+    });
+
+    setBatchRows(initialRows);
+    setIsBatchModalOpen(true);
+  };
+
+  // ============================================================================
+  // FUNGSI BARU: GANTI SHIFT PADA MODAL INPUT MASSAL
+  // ============================================================================
+  const handleBatchShiftChange = (newShiftId: string) => {
+    setBatchShiftId(newShiftId);
+    setCopyFeedback(null);
+
+    const updatedRows: { [vendorId: string]: { targetHeadcount: number; workingHours: string; notes: string } } = {};
+    vendors.forEach((v) => {
+      const existing = plotingans.find((p) => p.vendorId === v.id && p.shiftId === newShiftId);
+      updatedRows[v.id] = {
+        targetHeadcount: existing ? existing.targetHeadcount : 0,
+        workingHours: existing?.workingHours || '',
+        notes: existing?.notes || '',
+      };
+    });
+    setBatchRows(updatedRows);
+  };
+
+  // ============================================================================
+  // FUNGSI BARU: SALIN PLOTINGAN DARI KEMARIN (H-1)
+  // Menarik data kuota vendor dari 1 hari sebelumnya pada shift yang sama.
+  // ============================================================================
+  const handleCopyFromYesterday = async () => {
+    setIsCopying(true);
+    setCopyFeedback(null);
+    try {
+      // Hitung tanggal H-1
+      const dateObj = new Date(selectedDate);
+      dateObj.setDate(dateObj.getDate() - 1);
+      const yesterdayDate = dateObj.toISOString().split('T')[0];
+
+      const res = await getPlotinganForCopy(yesterdayDate, batchShiftId);
+      if (!res.success || !res.data || res.data.length === 0) {
+        setCopyFeedback({
+          type: 'error',
+          message: `Tidak ada data plotingan pada kemarin (${yesterdayDate}) untuk shift ini.`,
+        });
+        return;
+      }
+
+      // Terapkan kuota kemarin ke baris form
+      const newRows = { ...batchRows };
+      let matchedCount = 0;
+
+      res.data.forEach((item: any) => {
+        if (newRows[item.vendorId] !== undefined) {
+          newRows[item.vendorId] = {
+            targetHeadcount: item.targetHeadcount,
+            workingHours: item.workingHours || '',
+            notes: item.notes || '',
+          };
+          matchedCount++;
+        }
+      });
+
+      setBatchRows(newRows);
+      setCopyFeedback({
+        type: 'success',
+        message: `Berhasil menyalin kuota ${matchedCount} vendor dari kemarin (${yesterdayDate})! Cek & sesuaikan jika ada perbedaan angka.`,
+      });
+    } catch (err: any) {
+      setCopyFeedback({
+        type: 'error',
+        message: 'Gagal mengambil data dari kemarin: ' + err.message,
+      });
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
+  // ============================================================================
+  // FUNGSI: RESET SEMUA TARGET KUOTA KE 0
+  // ============================================================================
+  const handleResetBatchToZero = () => {
+    const resetRows = { ...batchRows };
+    Object.keys(resetRows).forEach((id) => {
+      resetRows[id] = { ...resetRows[id], targetHeadcount: 0 };
+    });
+    setBatchRows(resetRows);
+  };
+
+  // ============================================================================
+  // FUNGSI: ISI CEPAT SEMUA TARGET VENDOR DENGAN ANGKA TERTENTU
+  // ============================================================================
+  const handleQuickSetAll = (val: number) => {
+    const updatedRows = { ...batchRows };
+    Object.keys(updatedRows).forEach((id) => {
+      updatedRows[id] = { ...updatedRows[id], targetHeadcount: val };
+    });
+    setBatchRows(updatedRows);
+  };
+
+  // ============================================================================
+  // FUNGSI: SIMPAN PLOTINGAN MASSAL KE DATABASE
+  // ============================================================================
+  const handleSubmitBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsBatchSubmitting(true);
+    try {
+      const items = Object.entries(batchRows).map(([vId, data]) => ({
+        vendorId: vId,
+        targetHeadcount: Number(data.targetHeadcount) || 0,
+        workingHours: data.workingHours,
+        notes: data.notes,
+      }));
+
+      const activeItems = items.filter((item) => item.targetHeadcount > 0);
+      if (activeItems.length === 0) {
+        alert('Mohon isi target kuota minimal 1 orang pada salah satu vendor.');
+        setIsBatchSubmitting(false);
+        return;
+      }
+
+      const res = await saveBatchPlotingan({
+        date: selectedDate,
+        shiftId: batchShiftId,
+        defaultWorkingHours: batchDefaultHours,
+        items,
+      });
+
+      if (!res.success) {
+        alert(res.error || 'Gagal menyimpan data plotingan massal.');
+        return;
+      }
+
+      setIsBatchModalOpen(false);
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'Gagal menyimpan data plotingan massal.');
+    } finally {
+      setIsBatchSubmitting(false);
     }
   };
 
@@ -194,14 +382,14 @@ export default function PlotinganTab({
         </div>
       </div>
 
-      {/* 2. HEADER TABEL, TOMBOL KELOLA VENDOR & TOMBOL TAMBAH PLOTINGAN */}
+      {/* 2. HEADER TABEL, TOMBOL KELOLA VENDOR & TOMBOL INPUT SEKALIGUS / SATUAN */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Daftar Plotingan ({selectedDate})</h2>
           <p className="text-xs text-slate-500">Kebutuhan total Manpower (MP) per vendor. Pembagian Reg & Add ditentukan saat absen masuk di hari H.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Tombol Buka Modal Kelola Vendor */}
           <button
             type="button"
@@ -213,13 +401,24 @@ export default function PlotinganTab({
             Kelola Vendor
           </button>
 
-          {/* Tombol Tambah Plotingan Baru */}
+          {/* Tombol Tambah Plotingan Satuan */}
           <button
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 transition-all cursor-pointer"
+            title="Tambah kuota 1 vendor saja"
           >
-            <Plus className="w-4 h-4" />
-            Tambah Plotingan
+            <Plus className="w-3.5 h-3.5 text-slate-500" />
+            Tambah Satuan
+          </button>
+
+          {/* TOMBOL UTAMA: Input Ploting Sekaligus (Massal) */}
+          <button
+            onClick={() => handleOpenBatchModal()}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+            title="Input kuota seluruh vendor sekaligus dalam 1 tabel cepat"
+          >
+            <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+            Input Sekaligus (Massal)
           </button>
         </div>
       </div>
@@ -230,9 +429,25 @@ export default function PlotinganTab({
           <div className="p-12 text-center">
             <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-base font-bold text-slate-700">Belum Ada Plotingan di Tanggal Ini</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Silakan klik tombol "Tambah Plotingan" untuk menentukan target kuota regular & additional per vendor.
+            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+              Gunakan tombol <b>Input Sekaligus</b> untuk mengisi seluruh kuota vendor dalam 1 layar, atau salin otomatis dari H-1!
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
+              <button
+                onClick={() => handleOpenBatchModal()}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                Input Ploting Sekaligus
+              </button>
+              <button
+                onClick={handleOpenAdd}
+                className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-slate-500" />
+                Tambah Satuan
+              </button>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -525,6 +740,368 @@ export default function PlotinganTab({
           onRefresh();
         }}
       />
+
+      {/* ==================================================================== */}
+      {/* 6. MODAL DIALOG: INPUT PLOTINGAN SEKALIGUS (BATCH MASSAL)           */}
+      {/* Memungkinkan pengisian target kuota semua vendor dalam 1 layar cepat*/}
+      {/* dilengkapi fitur pintar Salin dari Kemarin (H-1) & live kalkulator. */}
+      {/* ==================================================================== */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-5">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150 overflow-hidden">
+            
+            {/* Header Modal Batch */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md">
+                  <Zap className="w-5 h-5 text-amber-300 fill-amber-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                    Input Plotingan Sekaligus (Massal)
+                    <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      {selectedDate}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Isi target manpower seluruh vendor dalam 1 tabel cepat tanpa repot buka-tutup modal.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBatchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-header Kontrol: Pilih Shift & Shortcut Salin H-1 */}
+            <div className="p-4 bg-slate-50/90 border-b border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Switcher Pilihan Shift Kerja */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase">Pilih Shift:</span>
+                  <div className="inline-flex p-1 bg-slate-200/80 rounded-xl">
+                    {shifts.map((s) => {
+                      const isPagi = s.name.toLowerCase().includes('pagi');
+                      const isSelected = batchShiftId === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleBatchShiftChange(s.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? isPagi
+                                ? 'bg-amber-500 text-white shadow-sm'
+                                : 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {isPagi ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Jam Kerja Default Otomatis (Opsional) */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap">Jam Default:</span>
+                  <div className="relative">
+                    <Clock className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      value={batchDefaultHours}
+                      onChange={(e) => setBatchDefaultHours(e.target.value)}
+                      placeholder="07:00 - 15:30 (Opsional)"
+                      className="text-xs font-semibold pl-8 pr-2.5 py-1.5 bg-white border border-slate-300 rounded-lg w-44 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Toolbar Aksi Cepat: Salin dari Kemarin & Preset Angka */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                <div className="flex items-center gap-2">
+                  {/* Tombol Cerdas: Salin dari Kemarin (H-1) */}
+                  <button
+                    type="button"
+                    onClick={handleCopyFromYesterday}
+                    disabled={isCopying}
+                    className="inline-flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs px-3 py-1.5 rounded-lg border border-emerald-300 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                    title="Otomatis menyalin kuota dari shift kemarin"
+                  >
+                    {isCopying ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-emerald-600" />
+                    )}
+                    {isCopying ? 'Menyalin data H-1...' : '📋 Salin dari Kemarin (H-1)'}
+                  </button>
+
+                  <span className="text-xs text-slate-400">|</span>
+
+                  {/* Isi Cepat Preset */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickSetAll(20)}
+                    className="text-xs font-bold text-slate-600 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                    title="Set semua vendor ke 20 MP"
+                  >
+                    Set Semua 20 MP
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResetBatchToZero}
+                    className="text-xs font-semibold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                    title="Reset semua target ke 0"
+                  >
+                    Reset ke 0
+                  </button>
+                </div>
+
+                <div className="text-[11px] font-semibold text-slate-500">
+                  Tekan <kbd className="px-1.5 py-0.5 bg-slate-200 rounded text-slate-700 font-mono text-[10px]">Tab</kbd> untuk berpindah cepat ke vendor berikutnya
+                </div>
+              </div>
+
+              {/* Feedback Banner Hasil Salin Kemarin */}
+              {copyFeedback && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border ${
+                    copyFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {copyFeedback.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    )}
+                    <span>{copyFeedback.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCopyFeedback(null)}
+                    className="text-slate-400 hover:text-slate-600 text-xs ml-2 cursor-pointer font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Form Tabel Grid Seluruh Vendor (Scrollable) */}
+            <form onSubmit={handleSubmitBatch} className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto overflow-x-auto p-4">
+                <table className="w-full text-left text-sm text-slate-600 border-collapse">
+                  <thead className="bg-slate-100/90 text-xs font-bold text-slate-700 uppercase sticky top-0 z-10 border-b border-slate-200 shadow-xs">
+                    <tr>
+                      <th className="py-2.5 px-3 w-10 text-center">No</th>
+                      <th className="py-2.5 px-4">Nama Vendor</th>
+                      <th className="py-2.5 px-4 text-center w-48">Target Manpower (MP)</th>
+                      <th className="py-2.5 px-4 w-52">Jam Kerja (Opsional)</th>
+                      <th className="py-2.5 px-4">Catatan Khusus</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {vendors.map((v, idx) => {
+                      const rowData = batchRows[v.id] || { targetHeadcount: 0, workingHours: '', notes: '' };
+                      const isFilled = Number(rowData.targetHeadcount) > 0;
+                      const hasExisting = plotingans.some((p) => p.vendorId === v.id && p.shiftId === batchShiftId);
+
+                      return (
+                        <tr
+                          key={v.id}
+                          className={`transition-colors ${
+                            isFilled
+                              ? 'bg-blue-50/40 hover:bg-blue-50/70'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          {/* Nomor Urut */}
+                          <td className="py-3 px-3 text-center text-xs font-bold text-slate-400">
+                            {idx + 1}
+                          </td>
+
+                          {/* Nama Vendor & Info PIC */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <Building2 className={`w-4 h-4 ${isFilled ? 'text-blue-600' : 'text-slate-400'}`} />
+                              <div>
+                                <span className={`font-extrabold ${isFilled ? 'text-blue-950' : 'text-slate-900'}`}>
+                                  {v.name}
+                                </span>
+                                {v.picName && (
+                                  <span className="text-[11px] text-slate-400 block">
+                                    PIC: {v.picName} {v.phone ? `(${v.phone})` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {hasExisting && (
+                              <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded mt-0.5">
+                                Sudah terploting sebelumnya
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Input Target MP (Keyboard friendly: Tab / Enter, dengan tombol +/-) */}
+                          <td className="py-3 px-4 text-center">
+                            <div className="inline-flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                onClick={() => {
+                                  const currentVal = Number(rowData.targetHeadcount) || 0;
+                                  const nextVal = Math.max(0, currentVal - 1);
+                                  setBatchRows({
+                                    ...batchRows,
+                                    [v.id]: { ...rowData, targetHeadcount: nextVal },
+                                  });
+                                }}
+                                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-base flex items-center justify-center cursor-pointer transition-colors border border-slate-200"
+                              >
+                                -
+                              </button>
+                              
+                              <input
+                                type="number"
+                                min="0"
+                                value={rowData.targetHeadcount === 0 ? '' : rowData.targetHeadcount}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const parsed = parseInt(e.target.value, 10);
+                                  setBatchRows({
+                                    ...batchRows,
+                                    [v.id]: {
+                                      ...rowData,
+                                      targetHeadcount: isNaN(parsed) ? 0 : Math.max(0, parsed),
+                                    },
+                                  });
+                                }}
+                                className={`w-20 text-center font-black text-lg py-1 px-2 rounded-xl border-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  isFilled
+                                    ? 'border-blue-500 bg-white text-blue-900 shadow-xs'
+                                    : 'border-slate-300 bg-white text-slate-800'
+                                }`}
+                              />
+
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                onClick={() => {
+                                  const currentVal = Number(rowData.targetHeadcount) || 0;
+                                  const nextVal = currentVal + 1;
+                                  setBatchRows({
+                                    ...batchRows,
+                                    [v.id]: { ...rowData, targetHeadcount: nextVal },
+                                  });
+                                }}
+                                className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-base flex items-center justify-center cursor-pointer transition-colors border border-blue-200"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Jam Kerja Khusus (Opsional) */}
+                          <td className="py-3 px-4">
+                            <input
+                              type="text"
+                              value={rowData.workingHours}
+                              placeholder={batchDefaultHours ? `Default: ${batchDefaultHours}` : 'Fleksibel'}
+                              onChange={(e) => {
+                                setBatchRows({
+                                  ...batchRows,
+                                  [v.id]: { ...rowData, workingHours: e.target.value },
+                                });
+                              }}
+                              className="w-full text-xs font-medium px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                            />
+                          </td>
+
+                          {/* Catatan Tambahan */}
+                          <td className="py-3 px-4">
+                            <input
+                              type="text"
+                              value={rowData.notes}
+                              placeholder="Catatan khusus vendor..."
+                              onChange={(e) => {
+                                setBatchRows({
+                                  ...batchRows,
+                                  [v.id]: { ...rowData, notes: e.target.value },
+                                });
+                              }}
+                              className="w-full text-xs font-medium px-2.5 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer Sticky Modal Batch: Live Total & Tombol Simpan */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Total Ringkasan MP Terisi */}
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-xs text-slate-500 font-semibold block uppercase">Vendor Terisi</span>
+                    <span className="text-base font-extrabold text-slate-800">
+                      {Object.values(batchRows).filter((r) => Number(r.targetHeadcount) > 0).length} / {vendors.length} Vendor
+                    </span>
+                  </div>
+                  <div className="h-8 w-px bg-slate-200" />
+                  <div>
+                    <span className="text-xs text-slate-500 font-semibold block uppercase">Total Target Manpower</span>
+                    <span className="text-xl font-black text-blue-700">
+                      {Object.values(batchRows).reduce((sum, r) => sum + (Number(r.targetHeadcount) || 0), 0)}{' '}
+                      <span className="text-xs font-bold text-slate-500">MP</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tombol Batal & Simpan Semua */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsBatchModalOpen(false)}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isBatchSubmitting}
+                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isBatchSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Menyimpan Semua...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 text-white" />
+                        Simpan Semua Plotingan
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
