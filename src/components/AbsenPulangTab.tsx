@@ -737,7 +737,13 @@ export default function AbsenPulangTab({
                       max={inRegModal}
                       required
                       value={pulangRegular}
-                      onChange={(e) => setPulangRegular(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                        const clamped = Math.min(Math.max(0, val), inRegModal);
+                        setPulangRegular(clamped);
+                        // Otomatis sesuaikan tumbang jika user ubah pulang langsung
+                        setTumbangRegular(Math.max(0, inRegModal - clamped));
+                      }}
                       className="w-full border-2 border-blue-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -748,7 +754,13 @@ export default function AbsenPulangTab({
                       min="0"
                       max={inAddModal}
                       value={pulangAdditional}
-                      onChange={(e) => setPulangAdditional(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                        const clamped = Math.min(Math.max(0, val), inAddModal);
+                        setPulangAdditional(clamped);
+                        // Otomatis sesuaikan tumbang jika user ubah pulang langsung
+                        setTumbangAdditional(Math.max(0, inAddModal - clamped));
+                      }}
                       className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
@@ -763,22 +775,42 @@ export default function AbsenPulangTab({
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[11px] font-bold text-blue-700 block mb-1">Tumbang Regular:</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold text-blue-700">Tumbang Regular:</span>
+                      <span className="text-[10px] text-slate-400 font-medium">(Auto-potong Pulang)</span>
+                    </div>
                     <input
                       type="number"
                       min="0"
+                      max={inRegModal}
                       value={tumbangRegular}
-                      onChange={(e) => setTumbangRegular(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                        const clamped = Math.min(Math.max(0, val), inRegModal);
+                        setTumbangRegular(clamped);
+                        // Otomatis kurangi pulangRegular: Masuk - Tumbang
+                        setPulangRegular(Math.max(0, inRegModal - clamped));
+                      }}
                       className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold text-amber-700 block mb-1">Tumbang Additional:</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold text-amber-700">Tumbang Additional:</span>
+                      <span className="text-[10px] text-slate-400 font-medium">(Auto-potong Pulang)</span>
+                    </div>
                     <input
                       type="number"
                       min="0"
+                      max={inAddModal}
                       value={tumbangAdditional}
-                      onChange={(e) => setTumbangAdditional(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                        const clamped = Math.min(Math.max(0, val), inAddModal);
+                        setTumbangAdditional(clamped);
+                        // Otomatis kurangi pulangAdditional: Masuk - Tumbang
+                        setPulangAdditional(Math.max(0, inAddModal - clamped));
+                      }}
                       className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
