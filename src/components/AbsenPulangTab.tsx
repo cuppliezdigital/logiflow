@@ -54,6 +54,65 @@ interface SectionPhotoSlot {
   existingUrl?: string | null;// URL foto lama jika mode edit
 }
 
+// ============================================================================
+// FUNGSI PEMBANTU: FORMAT WAKTU 24 JAM STANDAR LOGISTIK (00:00 - 23:59)
+// Menghilangkan format AM/PM bawaan browser dan memastikan waktu selalu 24 jam.
+// ============================================================================
+
+// Helper mendapatkan jam dan menit saat ini dalam format 24 jam (HH:mm)
+export const getCurrent24HourTime = (): string => {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+// Helper konversi/normalisasi teks waktu ke format 24 jam ketat (00:00 s.d. 23:59)
+// Mengonversi format 12 jam (AM/PM) ke 24 jam jika ditemukan string lama
+export const convertTo24Hour = (timeStr?: string | null): string => {
+  if (!timeStr || typeof timeStr !== 'string') return getCurrent24HourTime();
+  const trimmed = timeStr.trim();
+  if (!trimmed) return getCurrent24HourTime();
+
+  const isPM = /pm/i.test(trimmed);
+  const isAM = /am/i.test(trimmed);
+
+  // Bersihkan semua karakter selain angka dan titik dua
+  const cleaned = trimmed.replace(/[^0-9:]/g, '');
+  if (!cleaned) return getCurrent24HourTime();
+
+  let hours = 0;
+  let minutes = 0;
+
+  if (cleaned.includes(':')) {
+    const parts = cleaned.split(':');
+    hours = parseInt(parts[0] || '0', 10);
+    minutes = parseInt(parts[1] || '0', 10);
+  } else if (cleaned.length <= 2) {
+    hours = parseInt(cleaned, 10);
+    minutes = 0;
+  } else {
+    hours = parseInt(cleaned.slice(0, 2), 10);
+    minutes = parseInt(cleaned.slice(2, 4), 10);
+  }
+
+  if (isNaN(hours)) hours = 0;
+  if (isNaN(minutes)) minutes = 0;
+
+  // Logika konversi 12 jam (AM/PM) ke format 24 jam
+  if (isPM && hours < 12) {
+    hours += 12;
+  } else if (isAM && hours === 12) {
+    hours = 0;
+  }
+
+  // Batasi jam (0-23) dan menit (0-59)
+  hours = Math.min(Math.max(0, hours), 23);
+  minutes = Math.min(Math.max(0, minutes), 59);
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 // Struktur data untuk multi-kejadian pekerja tumbang / izin di jam kerja
 // Mendukung pencatatan lebih dari 1 orang dengan jam keluar berbeda dan foto bukti mandiri
 interface TumbangIncidentSlot {
@@ -224,12 +283,13 @@ export default function AbsenPulangTab({
     setPulangAdditional(Math.max(0, inAdd - addCount));
   };
 
-  // Tambah kejadian tumbang baru (otomatis set waktu saat ini)
+  // Tambah kejadian tumbang baru (otomatis set waktu saat ini dalam format 24 jam)
   const handleAddIncident = (forcedCat?: 'REGULAR' | 'ADDITIONAL') => {
     const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
     const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
     const defaultCat = forcedCat || (inAdd > 0 && tumbangAdditional < inAdd ? 'ADDITIONAL' : 'REGULAR');
-    const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+    // Format 24 jam murni tanpa AM/PM (HH:mm)
+    const nowTime = getCurrent24HourTime();
     const newInc: TumbangIncidentSlot = {
       id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       category: defaultCat,
@@ -244,7 +304,7 @@ export default function AbsenPulangTab({
     syncCountsFromIncidents(updated, inReg, inAdd);
   };
 
-  // Hapus kejadian tumbang tertentu
+  // Hapus satu kejadian tumbang
   const handleRemoveIncident = (id: string) => {
     const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
     const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
@@ -253,7 +313,7 @@ export default function AbsenPulangTab({
     syncCountsFromIncidents(updated, inReg, inAdd);
   };
 
-  // Ubah atribut kejadian tumbang (kategori, jam, jenis kendala, catatan)
+  // Update nilai atribut dalam kejadian tumbang
   const handleUpdateIncident = (id: string, field: keyof TumbangIncidentSlot, value: any) => {
     const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
     const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
@@ -264,9 +324,8 @@ export default function AbsenPulangTab({
     }
   };
 
-  // Unggah foto bukti untuk kejadian tertentu (dengan kompresi otomatis di browser)
-  const handleIncidentFileChange = async (id: string, file: File | null) => {
-    if (!file) return;
+  // Unggah foto khusus untuk 1 kejadian tumbang
+  const handleIncidentFileChange = async (id: string, file: File) => {
     const compressed = await compressImage(file);
     const previewUrl = URL.createObjectURL(compressed);
     setTumbangIncidents((prev) =>
@@ -274,7 +333,7 @@ export default function AbsenPulangTab({
     );
   };
 
-  // Hapus foto bukti suatu kejadian
+  // Hapus foto dari kejadian tumbang
   const handleRemoveIncidentPhoto = (id: string) => {
     setTumbangIncidents((prev) =>
       prev.map((inc) => (inc.id === id ? { ...inc, file: null, preview: null, existingUrl: null } : inc))
@@ -282,32 +341,36 @@ export default function AbsenPulangTab({
   };
 
   // --------------------------------------------------------------------------
-  // EVENT HANDLER: MEMBUKA MODAL & INISIALISASI DATA
+  // BUKA MODAL DAN LOAD DATA SEBELUMNYA
   // --------------------------------------------------------------------------
-  const handleOpenModal = (plot: any) => {
-    setSelectedPlotingan(plot);
-    const existingIn = plot.attendanceIn;
-    const existingOut = existingIn?.attendanceOut;
+  const handleOpenModal = (plotingan: any) => {
+    setSelectedPlotingan(plotingan);
 
-    const inReg = existingIn ? (existingIn.actualRegular ?? existingIn.actualHeadcount) : 0;
-    const inAdd = existingIn ? (existingIn.actualAdditional ?? 0) : 0;
+    const existingOut = plotingan.attendanceIn?.attendanceOut;
+    const inReg = plotingan.attendanceIn ? (plotingan.attendanceIn.actualRegular ?? plotingan.attendanceIn.actualHeadcount) : 0;
+    const inAdd = plotingan.attendanceIn?.actualAdditional ?? 0;
 
+    const currentTumbangReg = existingOut ? existingOut.tumbangRegular : 0;
+    const currentTumbangAdd = existingOut ? existingOut.tumbangAdditional : 0;
+
+    setTumbangRegular(currentTumbangReg);
+    setTumbangAdditional(currentTumbangAdd);
+    setTumbangNotes(existingOut?.tumbangNotes || '');
+
+    // Default pulang: Masuk - Tumbang (terkunci seimbang)
     if (existingOut) {
-      setPulangRegular(existingOut.pulangRegular ?? existingOut.pulangHeadcount);
-      setPulangAdditional(existingOut.pulangAdditional ?? 0);
-      setTumbangRegular(existingOut.tumbangRegular ?? existingOut.tumbangHeadcount);
-      setTumbangAdditional(existingOut.tumbangAdditional ?? 0);
-      setTumbangNotes(existingOut.tumbangNotes || '');
-
-      setPhotoTumbangPreview(existingOut.photoTumbangUrl || null);
-      setExistingPhotoTumbang(existingOut.photoTumbangUrl || null);
+      setPulangRegular(existingOut.pulangRegular ?? existingOut.pulangHeadcount ?? Math.max(0, inReg - currentTumbangReg));
+      setPulangAdditional(existingOut.pulangAdditional ?? Math.max(0, inAdd - currentTumbangAdd));
     } else {
-      // Default: diasumsikan seluruh orang yang masuk apel pulang utuh tanpa tumbang
       setPulangRegular(inReg);
       setPulangAdditional(inAdd);
-      setTumbangRegular(0);
-      setTumbangAdditional(0);
-      setTumbangNotes('');
+    }
+
+    // Inisialisasi foto tumbang tunggal (legacy)
+    if (existingOut?.photoTumbangUrl) {
+      setPhotoTumbangPreview(existingOut.photoTumbangUrl);
+      setExistingPhotoTumbang(existingOut.photoTumbangUrl);
+    } else {
       setPhotoTumbangPreview(null);
       setExistingPhotoTumbang(null);
     }
@@ -322,7 +385,8 @@ export default function AbsenPulangTab({
           parsedIncidents = arr.map((item: any, idx: number) => ({
             id: `init-inc-${idx}-${Date.now()}`,
             category: item.category || 'REGULAR',
-            time: item.time || '',
+            // Konversi ke format 24 jam murni tanpa AM/PM
+            time: convertTo24Hour(item.time),
             type: item.type || 'Sakit / Klinik',
             notes: item.notes || '',
             file: null,
@@ -337,7 +401,7 @@ export default function AbsenPulangTab({
       parsedIncidents = [{
         id: `init-inc-legacy-${Date.now()}`,
         category: existingOut.tumbangRegular > 0 ? 'REGULAR' : 'ADDITIONAL',
-        time: '',
+        time: getCurrent24HourTime(),
         type: 'Sakit / Kendala',
         notes: existingOut.tumbangNotes || '',
         file: null,
@@ -763,7 +827,11 @@ export default function AbsenPulangTab({
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${inc.category === 'REGULAR' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
                                     {inc.category === 'REGULAR' ? 'Reg' : 'Add'}
                                   </span>
-                                  {inc.time && <span className="font-bold text-slate-700">[{inc.time}]</span>}
+                                  {inc.time && (
+                                    <span className="font-mono font-black text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                                      {convertTo24Hour(inc.time)}
+                                    </span>
+                                  )}
                                   <span className="text-slate-800 font-medium truncate">{inc.notes || inc.type}</span>
                                 </div>
                                 {inc.url && (
@@ -1097,16 +1165,54 @@ export default function AbsenPulangTab({
                             </select>
                           </div>
 
-                          {/* Jam Keluar / Izin */}
+                          {/* Jam Keluar / Izin (Format 24 Jam Murni: 00:00 - 23:59 WIB, Bebas AM/PM) */}
                           <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Jam Keluar Gudang</label>
-                            <input
-                              type="time"
-                              required
-                              value={inc.time}
-                              onChange={(e) => handleUpdateIncident(inc.id, 'time', e.target.value)}
-                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            />
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Jam Keluar (24 Jam)
+                              </label>
+                              <span className="text-[9px] font-black text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded">
+                                24 Jam
+                              </span>
+                            </div>
+                            <div className="relative flex items-center">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                required
+                                value={inc.time}
+                                placeholder="Contoh: 23:27"
+                                maxLength={5}
+                                onChange={(e) => {
+                                  // Ambil hanya angka dan titik dua
+                                  let val = e.target.value.replace(/[^0-9:]/g, '');
+                                  // Otomatis sisipkan tanda ':' setelah 2 digit jam
+                                  if (val.length === 2 && !val.includes(':') && e.target.value.length > (inc.time || '').length) {
+                                    val = val + ':';
+                                  }
+                                  handleUpdateIncident(inc.id, 'time', val);
+                                }}
+                                onBlur={(e) => {
+                                  // Normalisasi ketat ke format 24 jam (00:00 s.d. 23:59)
+                                  const formatted = convertTo24Hour(e.target.value);
+                                  handleUpdateIncident(inc.id, 'time', formatted);
+                                }}
+                                className="w-full text-xs font-black font-mono rounded-lg border border-slate-300 pl-2.5 pr-16 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              />
+                              {/* Tombol Cepat: Jam Sekarang (WIB 24 Jam) */}
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateIncident(inc.id, 'time', getCurrent24HourTime())}
+                                className="absolute right-1 px-1.5 py-0.5 text-[10px] font-extrabold bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors cursor-pointer"
+                                title="Set ke jam saat ini (WIB)"
+                              >
+                                Sekarang
+                              </button>
+                            </div>
+                            <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">
+                              00:00 s.d. 23:59 WIB (Tanpa AM/PM)
+                            </span>
                           </div>
 
                           {/* Jenis Kendala */}

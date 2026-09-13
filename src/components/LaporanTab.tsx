@@ -31,6 +31,7 @@ import {
   Clock
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
+import { convertTo24Hour } from '@/components/AbsenPulangTab';
 
 // Definisi props untuk komponen LaporanTab
 interface LaporanTabProps {
@@ -146,7 +147,8 @@ export default function LaporanTab({
             vendorName: r.vendor.name,
             shiftName: r.shift.name,
             category: inc.category || 'REGULAR',
-            time: inc.time || '-',
+            // Format waktu 24 jam murni tanpa AM/PM
+            time: inc.time ? convertTo24Hour(inc.time) : '-',
             type: inc.type || 'Sakit',
             notes: inc.notes || '-',
             url: inc.url || null,

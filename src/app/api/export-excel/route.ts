@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
+import { convertTo24Hour } from '@/components/AbsenPulangTab';
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,9 +62,11 @@ export async function GET(request: NextRequest) {
         try {
           const parsed = JSON.parse(out.tumbangNotes);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            keteranganKendala = parsed.map((p: any, i: number) => 
-              `#${i + 1} [${p.category || 'REG'}] ${p.time || '-'} (${p.type || 'Kendala'}): ${p.notes || '-'}`
-            ).join(' | ');
+            // Pastikan format jam insiden di Excel selalu 24 jam (HH:mm) tanpa embel-embel AM/PM
+            keteranganKendala = parsed.map((p: any, i: number) => {
+              const time24 = p.time ? convertTo24Hour(p.time) : '-';
+              return `#${i + 1} [${p.category || 'REG'}] ${time24} (${p.type || 'Kendala'}): ${p.notes || '-'}`;
+            }).join(' | ');
           } else {
             keteranganKendala = out.tumbangNotes;
           }
