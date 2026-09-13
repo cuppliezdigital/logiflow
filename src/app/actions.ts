@@ -6,8 +6,8 @@
 // 1. Kelola Vendor (CRUD Vendor Langsung dari UI)
 // 2. Master Data (Vendor Aktif & Shift Pagi/Malam)
 // 3. Plotingan Terpadu: 1 Vendor mencakup kuota REGULAR & ADDITIONAL sekaligus
-// 4. Absen Masuk: Input kehadiran & 2 slot foto (Reguler & Additional)
-// 5. Absen Pulang: Input kepulangan & audit integritas terpisah per kategori
+// 4. Absen Masuk: Multi-Foto per Bagian (Bongkar, Muat, Sortir, Repack, FIFO) + Validasi Wajib
+// 5. Absen Pulang: Multi-Foto Checkout per Bagian + Validasi Wajib + Bukti P3K
 // 6. Rekapitulasi Laporan KPI & Integrasi Tagihan
 // ============================================================================
 
@@ -48,9 +48,6 @@ async function saveUploadedFile(file: File | null): Promise<string | null> {
 // ----------------------------------------------------------------------------
 // 1. MANAJEMEN VENDOR (CRUD VENDOR LANGSUNG DARI WEB)
 // ----------------------------------------------------------------------------
-/**
- * Menambahkan Vendor Baru ke Database.
- */
 export async function createVendor(formData: FormData) {
   const name = (formData.get('name') as string)?.trim();
   const picName = (formData.get('picName') as string)?.trim() || null;
@@ -73,9 +70,6 @@ export async function createVendor(formData: FormData) {
   return { success: true };
 }
 
-/**
- * Memperbarui Data Vendor yang Sudah Ada.
- */
 export async function updateVendor(id: string, formData: FormData) {
   const name = (formData.get('name') as string)?.trim();
   const picName = (formData.get('picName') as string)?.trim() || null;
@@ -98,20 +92,15 @@ export async function updateVendor(id: string, formData: FormData) {
   return { success: true };
 }
 
-/**
- * Menghapus Vendor atau Menonaktifkannya jika sudah punya riwayat transaksi.
- */
 export async function deleteVendor(id: string) {
   const plotinganCount = await prisma.plotingan.count({ where: { vendorId: id } });
 
   if (plotinganCount > 0) {
-    // Jika vendor sudah pernah dipakai di plotingan, kita nonaktifkan agar laporan historis tidak rusak
     await prisma.vendor.update({
       where: { id },
       data: { status: 'INACTIVE' },
     });
   } else {
-    // Jika vendor belum pernah ada transaksi sama sekali, hapus permanen
     await prisma.vendor.delete({ where: { id } });
   }
 
@@ -133,9 +122,6 @@ export async function getMasterData() {
 // ----------------------------------------------------------------------------
 // 3. MODUL PLOTINGAN: 1 Entri per Vendor mencakup REGULAR & ADDITIONAL Sekaligus
 // ----------------------------------------------------------------------------
-/**
- * Mengambil daftar plotingan berdasarkan tanggal tertentu.
- */
 export async function getPlotingans(date?: string) {
   const targetDate = date || new Date().toISOString().split('T')[0];
   const list = await prisma.plotingan.findMany({
@@ -154,30 +140,22 @@ export async function getPlotingans(date?: string) {
   return list;
 }
 
-/**
- * Menyimpan data plotingan baru.
- * 1 Vendor pada 1 Shift langsung menginput target kuota REGULAR dan ADDITIONAL.
- */
 export async function createPlotingan(formData: FormData) {
   const date = formData.get('date') as string;
   const vendorId = formData.get('vendorId') as string;
   const shiftId = formData.get('shiftId') as string;
   
-  // Ambil kuota regular & additional
   const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
   const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
-  // Total target otomatis dijumlahkan
   const targetHeadcount = targetRegular + targetAdditional;
 
   const workingHours = (formData.get('workingHours') as string)?.trim() || null;
   const notes = (formData.get('notes') as string) || null;
 
-  // Validasi: Harus pilih vendor, shift, dan total kuota minimal 1 orang
   if (!date || !vendorId || !shiftId || targetHeadcount <= 0) {
     return { success: false, error: 'Target kuota minimal 1 orang (baik Regular maupun Additional).' };
   }
 
-  // Cek apakah vendor ini sudah diplot pada shift dan tanggal yang sama
   const existing = await prisma.plotingan.findFirst({
     where: {
       date,
@@ -211,9 +189,6 @@ export async function createPlotingan(formData: FormData) {
   return { success: true };
 }
 
-/**
- * Memperbarui data target regular & additional pada plotingan yang sudah ada.
- */
 export async function updatePlotingan(id: string, formData: FormData) {
   const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
   const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
@@ -240,9 +215,6 @@ export async function updatePlotingan(id: string, formData: FormData) {
   return { success: true };
 }
 
-/**
- * Menghapus data plotingan.
- */
 export async function deletePlotingan(id: string) {
   await prisma.plotingan.delete({ where: { id } });
   revalidatePath('/');
@@ -250,13 +222,12 @@ export async function deletePlotingan(id: string) {
 }
 
 // ----------------------------------------------------------------------------
-// 4. MODUL ABSEN MASUK: Pencatatan Kehadiran & Foto Terpisah (Reg & Add)
+// 4. MODUL ABSEN MASUK: Multi-Foto per Bagian Gudang + Validasi Ketat Wajib Foto
 // ----------------------------------------------------------------------------
 /**
- * Menyimpan data serah terima kehadiran fisik saat apel pagi shift:
- * - Hadir Regular vs Hadir Additional
- * - Slot Upload Foto Barisan Apel REGULAR
- * - Slot Upload Foto Barisan Apel ADDITIONAL
+ * Menyimpan absensi serah terima apel masuk:
+ * - Mendukung kumpulan foto per bagian: [{ section: 'Bongkar', url: '...' }]
+ * - Validasi: WAJIB melampirkan minimal 1 foto untuk kuota yang ada orangnya.
  */
 export async function submitAbsenMasuk(formData: FormData) {
   const plotinganId = formData.get('plotinganId') as string;
@@ -265,18 +236,61 @@ export async function submitAbsenMasuk(formData: FormData) {
   const actualHeadcount = actualRegular + actualAdditional;
   const notes = (formData.get('notes') as string) || null;
 
-  const photoInRegularFile = formData.get('photoInRegular') as File | null;
-  const photoInAdditionalFile = formData.get('photoInAdditional') as File | null;
-
   if (!plotinganId || actualHeadcount <= 0) {
     return { success: false, error: 'Total orang masuk harus minimal 1 orang.' };
   }
 
-  // Simpan foto bukti masing-masing barisan apel
-  const [photoInRegularUrl, photoInAdditionalUrl] = await Promise.all([
-    saveUploadedFile(photoInRegularFile),
-    saveUploadedFile(photoInAdditionalFile),
-  ]);
+  // 1. Proses Multi-Foto Barisan REGULAR
+  const regularCount = parseInt(formData.get('photoInRegular_count') as string, 10) || 0;
+  const regularPhotos: Array<{ section: string; url: string }> = [];
+
+  for (let i = 0; i < regularCount; i++) {
+    const section = (formData.get(`photoInRegular_section_${i}`) as string)?.trim() || 'Umum';
+    const file = formData.get(`photoInRegular_file_${i}`) as File | null;
+    const existingUrl = formData.get(`photoInRegular_existing_${i}`) as string | null;
+
+    let url = existingUrl;
+    if (file && file.size > 0) {
+      url = await saveUploadedFile(file);
+    }
+
+    if (url) {
+      regularPhotos.push({ section, url });
+    }
+  }
+
+  // 2. Proses Multi-Foto Barisan ADDITIONAL
+  const additionalCount = parseInt(formData.get('photoInAdditional_count') as string, 10) || 0;
+  const additionalPhotos: Array<{ section: string; url: string }> = [];
+
+  for (let i = 0; i < additionalCount; i++) {
+    const section = (formData.get(`photoInAdditional_section_${i}`) as string)?.trim() || 'Umum';
+    const file = formData.get(`photoInAdditional_file_${i}`) as File | null;
+    const existingUrl = formData.get(`photoInAdditional_existing_${i}`) as string | null;
+
+    let url = existingUrl;
+    if (file && file.size > 0) {
+      url = await saveUploadedFile(file);
+    }
+
+    if (url) {
+      additionalPhotos.push({ section, url });
+    }
+  }
+
+  // VALIDASI KETAT WAJIB FOTO (STRICT VALIDATION):
+  if (actualRegular > 0 && regularPhotos.length === 0) {
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan fisik untuk pasukan REGULAR!' };
+  }
+
+  if (actualAdditional > 0 && additionalPhotos.length === 0) {
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan fisik untuk pasukan ADDITIONAL!' };
+  }
+
+  const photosRegularJson = JSON.stringify(regularPhotos);
+  const photosAdditionalJson = JSON.stringify(additionalPhotos);
+  const photoInRegularUrl = regularPhotos[0]?.url || null;
+  const photoInAdditionalUrl = additionalPhotos[0]?.url || null;
 
   await prisma.attendanceIn.upsert({
     where: { plotinganId },
@@ -285,17 +299,21 @@ export async function submitAbsenMasuk(formData: FormData) {
       actualRegular,
       actualAdditional,
       actualHeadcount,
+      photosRegularJson,
+      photosAdditionalJson,
       photoInRegularUrl,
       photoInAdditionalUrl,
-      photoInUrl: photoInRegularUrl || photoInAdditionalUrl, // fallback
+      photoInUrl: photoInRegularUrl || photoInAdditionalUrl,
       notes,
     },
     update: {
       actualRegular,
       actualAdditional,
       actualHeadcount,
-      ...(photoInRegularUrl ? { photoInRegularUrl } : {}),
-      ...(photoInAdditionalUrl ? { photoInAdditionalUrl } : {}),
+      photosRegularJson,
+      photosAdditionalJson,
+      photoInRegularUrl,
+      photoInAdditionalUrl,
       photoInUrl: photoInRegularUrl || photoInAdditionalUrl || undefined,
       notes,
     },
@@ -306,18 +324,8 @@ export async function submitAbsenMasuk(formData: FormData) {
 }
 
 // ----------------------------------------------------------------------------
-// 5. MODUL ABSEN PULANG & AUDIT INTEGRITAS (REGULAR VS ADDITIONAL)
+// 5. MODUL ABSEN PULANG: Multi-Foto Checkout per Bagian + Validasi Ketat
 // ----------------------------------------------------------------------------
-/**
- * Menyimpan data kepulangan & audit integritas di akhir shift:
- * - Pulang Regular & Pulang Additional
- * - Tumbang Regular & Tumbang Additional
- * - Slot Foto Barisan Pulang REGULAR & Slot Foto Checkout ADDITIONAL
- * - Slot Foto Bukti Surat Sakit / Klinik P3K
- * - Audit Integritas Otomatis:
- *   Selisih Regular = Hadir Reg - (Pulang Reg + Tumbang Reg)
- *   Selisih Additional = Hadir Add - (Pulang Add + Tumbang Add)
- */
 export async function submitAbsenPulang(formData: FormData) {
   const attendanceInId = formData.get('attendanceInId') as string;
   
@@ -331,10 +339,6 @@ export async function submitAbsenPulang(formData: FormData) {
 
   const tumbangNotes = (formData.get('tumbangNotes') as string) || null;
 
-  const photoPulangRegularFile = formData.get('photoPulangRegular') as File | null;
-  const photoPulangAdditionalFile = formData.get('photoPulangAdditional') as File | null;
-  const photoTumbangFile = formData.get('photoTumbang') as File | null;
-
   if (!attendanceInId) {
     return { success: false, error: 'Data absen masuk tidak ditemukan.' };
   }
@@ -347,18 +351,73 @@ export async function submitAbsenPulang(formData: FormData) {
     return { success: false, error: 'Data absensi masuk tidak valid.' };
   }
 
+  // 1. Multi-Foto Checkout Pulang REGULAR
+  const pulangRegCount = parseInt(formData.get('photoPulangRegular_count') as string, 10) || 0;
+  const pulangRegularPhotos: Array<{ section: string; url: string }> = [];
+
+  for (let i = 0; i < pulangRegCount; i++) {
+    const section = (formData.get(`photoPulangRegular_section_${i}`) as string)?.trim() || 'Umum';
+    const file = formData.get(`photoPulangRegular_file_${i}`) as File | null;
+    const existingUrl = formData.get(`photoPulangRegular_existing_${i}`) as string | null;
+
+    let url = existingUrl;
+    if (file && file.size > 0) {
+      url = await saveUploadedFile(file);
+    }
+    if (url) {
+      pulangRegularPhotos.push({ section, url });
+    }
+  }
+
+  // 2. Multi-Foto Checkout Pulang ADDITIONAL
+  const pulangAddCount = parseInt(formData.get('photoPulangAdditional_count') as string, 10) || 0;
+  const pulangAdditionalPhotos: Array<{ section: string; url: string }> = [];
+
+  for (let i = 0; i < pulangAddCount; i++) {
+    const section = (formData.get(`photoPulangAdditional_section_${i}`) as string)?.trim() || 'Umum';
+    const file = formData.get(`photoPulangAdditional_file_${i}`) as File | null;
+    const existingUrl = formData.get(`photoPulangAdditional_existing_${i}`) as string | null;
+
+    let url = existingUrl;
+    if (file && file.size > 0) {
+      url = await saveUploadedFile(file);
+    }
+    if (url) {
+      pulangAdditionalPhotos.push({ section, url });
+    }
+  }
+
+  // 3. Foto Bukti Tumbang / Surat Sakit
+  const photoTumbangFile = formData.get('photoTumbang') as File | null;
+  const photoTumbangExisting = formData.get('photoTumbang_existing') as string | null;
+  let photoTumbangUrl = photoTumbangExisting;
+  if (photoTumbangFile && photoTumbangFile.size > 0) {
+    photoTumbangUrl = await saveUploadedFile(photoTumbangFile);
+  }
+
+  // VALIDASI KETAT WAJIB FOTO CHECKOUT:
+  if (pulangRegular > 0 && pulangRegularPhotos.length === 0) {
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan checkout kepulangan REGULAR!' };
+  }
+
+  if (pulangAdditional > 0 && pulangAdditionalPhotos.length === 0) {
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan checkout kepulangan ADDITIONAL!' };
+  }
+
+  if (tumbangHeadcount > 0 && !photoTumbangUrl) {
+    return { success: false, error: 'Wajib melampirkan foto bukti surat dokter / klinik P3K untuk pekerja yang tumbang!' };
+  }
+
   // AUDIT INTEGRITAS MASING-MASING KATEGORI:
   const selisihRegular = attendanceIn.actualRegular - (pulangRegular + tumbangRegular);
   const selisihAdditional = attendanceIn.actualAdditional - (pulangAdditional + tumbangAdditional);
   const selisihCount = selisihRegular + selisihAdditional;
   const isBalanced = selisihCount === 0;
 
-  // Proses upload foto-foto kepulangan
-  const [photoPulangRegularUrl, photoPulangAdditionalUrl, photoTumbangUrl] = await Promise.all([
-    saveUploadedFile(photoPulangRegularFile),
-    saveUploadedFile(photoPulangAdditionalFile),
-    saveUploadedFile(photoTumbangFile),
-  ]);
+  const photosPulangRegularJson = JSON.stringify(pulangRegularPhotos);
+  const photosPulangAdditionalJson = JSON.stringify(pulangAdditionalPhotos);
+  const photoPulangRegularUrl = pulangRegularPhotos[0]?.url || null;
+  const photoPulangAdditionalUrl = pulangAdditionalPhotos[0]?.url || null;
 
   await prisma.attendanceOut.upsert({
     where: { attendanceInId },
@@ -370,6 +429,8 @@ export async function submitAbsenPulang(formData: FormData) {
       tumbangRegular,
       tumbangAdditional,
       tumbangHeadcount,
+      photosPulangRegularJson,
+      photosPulangAdditionalJson,
       photoPulangRegularUrl,
       photoPulangAdditionalUrl,
       photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl,
@@ -387,10 +448,12 @@ export async function submitAbsenPulang(formData: FormData) {
       tumbangRegular,
       tumbangAdditional,
       tumbangHeadcount,
-      ...(photoPulangRegularUrl ? { photoPulangRegularUrl } : {}),
-      ...(photoPulangAdditionalUrl ? { photoPulangAdditionalUrl } : {}),
+      photosPulangRegularJson,
+      photosPulangAdditionalJson,
+      photoPulangRegularUrl,
+      photoPulangAdditionalUrl,
       photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl || undefined,
-      ...(photoTumbangUrl ? { photoTumbangUrl } : {}),
+      photoTumbangUrl,
       tumbangNotes,
       selisihRegular,
       selisihAdditional,
@@ -404,7 +467,7 @@ export async function submitAbsenPulang(formData: FormData) {
 }
 
 // ----------------------------------------------------------------------------
-// 6. MODUL LAPORAN & REKAP KPI: Akumulasi Terpadu Regular & Additional
+// 6. MODUL LAPORAN & REKAP KPI
 // ----------------------------------------------------------------------------
 export async function getReportStats(startDate: string, endDate: string, vendorId?: string) {
   const whereClause: any = {

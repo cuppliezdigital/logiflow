@@ -67,8 +67,8 @@ model Plotingan {
 
 // ----------------------------------------------------------------------------
 // 4. MODEL ATTENDANCE IN (Absen Masuk / Serah Terima Pasukan di Apel Pagi)
-// Mencatat kehadiran fisik orang riil saat apel, dipisahkan antara pasukan
-// REGULAR dan pasukan ADDITIONAL, lengkap dengan 2 slot foto barisan terpisah.
+// Mendukung multi-foto per bagian gudang (Bongkar, Muat, Sortir, Repack, FIFO, dll)
+// yang disimpan dalam format JSON array terstruktur.
 // ----------------------------------------------------------------------------
 model AttendanceIn {
   id                    String         @id @default(cuid())
@@ -78,9 +78,16 @@ model AttendanceIn {
   actualRegular         Int            @default(0)     // Jumlah fisik orang regular yang hadir
   actualAdditional      Int            @default(0)     // Jumlah fisik orang additional yang hadir
   actualHeadcount       Int            // Total orang masuk (actualRegular + actualAdditional)
-  photoInRegularUrl     String?        // Link URL foto barisan apel pasukan REGULAR
-  photoInAdditionalUrl  String?        // Link URL foto barisan apel pasukan ADDITIONAL
+  
+  // Penyimpanan Multi-Foto per Bagian (JSON Array of { section: string, url: string })
+  photosRegularJson     String?        // JSON list foto apel barisan REGULAR per bagian
+  photosAdditionalJson  String?        // JSON list foto apel barisan ADDITIONAL per bagian
+  
+  // Fallback thumbnail tunggal
+  photoInRegularUrl     String?        // Link URL foto thumbnail barisan REGULAR
+  photoInAdditionalUrl  String?        // Link URL foto thumbnail barisan ADDITIONAL
   photoInUrl            String?        // Fallback kompatibilitas foto umum
+  
   notes                 String?        // Catatan saat serah terima apel
   createdAt             DateTime       @default(now())
   attendanceOut         AttendanceOut? // Relasi: 1 Absen Masuk memiliki 1 data Absen Pulang
@@ -88,36 +95,39 @@ model AttendanceIn {
 
 // ----------------------------------------------------------------------------
 // 5. MODEL ATTENDANCE OUT (Absen Pulang, Tumbang & Audit Integritas)
-// Mencatat kepulangan dan orang sakit/tumbang yang dipisahkan antara REGULAR
-// dan ADDITIONAL, foto barisan checkout masing-masing, serta bukti surat klinik.
+// Mendukung multi-foto checkout kepulangan per bagian dan foto bukti klinik P3K.
 // ----------------------------------------------------------------------------
 model AttendanceOut {
-  id                      String       @id @default(cuid())
-  attendanceInId          String       @unique
-  attendanceIn            AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
-  checkOutTime            DateTime     @default(now()) // Waktu checkout/apel selesai shift
+  id                        String       @id @default(cuid())
+  attendanceInId            String       @unique
+  attendanceIn              AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
+  checkOutTime              DateTime     @default(now()) // Waktu checkout/apel selesai shift
   
   // Rincian Kepulangan Utuh
-  pulangRegular           Int          @default(0)     // Jumlah orang regular yang pulang utuh
-  pulangAdditional        Int          @default(0)     // Jumlah orang additional yang pulang utuh
-  pulangHeadcount         Int          // Total orang pulang utuh (pulangRegular + pulangAdditional)
+  pulangRegular             Int          @default(0)     // Jumlah orang regular yang pulang utuh
+  pulangAdditional          Int          @default(0)     // Jumlah orang additional yang pulang utuh
+  pulangHeadcount           Int          // Total orang pulang utuh (pulangRegular + pulangAdditional)
   
   // Rincian Orang Tumbang (Sakit / Cedera Kerja)
-  tumbangRegular          Int          @default(0)     // Jumlah orang regular yang sakit/tumbang
-  tumbangAdditional       Int          @default(0)     // Jumlah orang additional yang sakit/tumbang
-  tumbangHeadcount        Int          @default(0)     // Total orang tumbang (tumbangRegular + tumbangAdditional)
+  tumbangRegular            Int          @default(0)     // Jumlah orang regular yang sakit/tumbang
+  tumbangAdditional         Int          @default(0)     // Jumlah orang additional yang sakit/tumbang
+  tumbangHeadcount          Int          @default(0)     // Total orang tumbang (tumbangRegular + tumbangAdditional)
   
-  // Dokumentasi Foto Bukti
-  photoPulangRegularUrl   String?      // Link URL foto barisan checkout pasukan REGULAR
-  photoPulangAdditionalUrl String?     // Link URL foto barisan checkout pasukan ADDITIONAL
-  photoPulangUrl          String?      // Fallback kompatibilitas foto pulang umum
-  photoTumbangUrl         String?      // Link URL foto surat sakit / bukti klinik P3K
-  tumbangNotes            String?      // Rincian penyebab tumbang (misal: kram otot di dock 4)
+  // Penyimpanan Multi-Foto Checkout per Bagian (JSON Array of { section: string, url: string })
+  photosPulangRegularJson   String?      // JSON list foto checkout REGULAR per bagian
+  photosPulangAdditionalJson String?     // JSON list foto checkout ADDITIONAL per bagian
+  
+  // Dokumentasi Foto Bukti & Fallback
+  photoPulangRegularUrl     String?      // Thumbnail foto checkout REGULAR
+  photoPulangAdditionalUrl  String?      // Thumbnail foto checkout ADDITIONAL
+  photoPulangUrl            String?      // Fallback kompatibilitas foto pulang umum
+  photoTumbangUrl           String?      // Link URL foto surat sakit / bukti klinik P3K
+  tumbangNotes              String?      // Rincian penyebab tumbang (misal: kram otot di dock 4)
   
   // Hasil Audit Integritas (Deteksi Pekerja Kabur)
-  selisihRegular          Int          @default(0)     // Selisih kabur regular: actualRegular - (pulangReg + tumbangReg)
-  selisihAdditional       Int          @default(0)     // Selisih kabur additional: actualAdd - (pulangAdd + tumbangAdd)
-  selisihCount            Int          @default(0)     // Total selisih orang kabur
-  isBalanced              Boolean      @default(true)  // True jika selisihCount == 0 (seimbang/klop)
-  createdAt               DateTime     @default(now())
+  selisihRegular            Int          @default(0)     // Selisih kabur regular: actualRegular - (pulangReg + tumbangReg)
+  selisihAdditional         Int          @default(0)     // Selisih kabur additional: actualAdd - (pulangAdd + tumbangAdd)
+  selisihCount              Int          @default(0)     // Total selisih orang kabur
+  isBalanced                Boolean      @default(true)  // True jika selisihCount == 0 (seimbang/klop)
+  createdAt                 DateTime     @default(now())
 }
