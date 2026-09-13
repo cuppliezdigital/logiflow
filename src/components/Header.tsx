@@ -50,8 +50,8 @@ export default function Header({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-extrabold tracking-tight text-white">
-                  Absen<span className="text-sky-400">si</span>
+                <h1 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-sky-300 bg-clip-text text-transparent">
+                  Absensi
                 </h1>
                 <span className="text-xs bg-sky-500/20 text-sky-300 font-semibold px-2 py-0.5 rounded-full border border-sky-500/30">
                   Manpower Control
@@ -87,7 +87,7 @@ export default function Header({
           {/* TAB 1: Plotingan (Target Permintaan H-1) */}
           <button
             onClick={() => setActiveTab('plotingan')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'plotingan'
                 ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
@@ -100,9 +100,9 @@ export default function Header({
           {/* TAB 2: Absen Masuk (Serah Terima Pasukan saat Apel Pagi) */}
           <button
             onClick={() => setActiveTab('masuk')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'masuk'
-                ? 'border-amber-400 text-amber-400 bg-amber-500/10 rounded-t-lg'
+                ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >
@@ -113,9 +113,9 @@ export default function Header({
           {/* TAB 3: Absen Pulang & Tumbang (Checkout & Audit Selisih/Kabur) */}
           <button
             onClick={() => setActiveTab('pulang')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'pulang'
-                ? 'border-rose-400 text-rose-400 bg-rose-500/10 rounded-t-lg'
+                ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >
@@ -126,9 +126,9 @@ export default function Header({
           {/* TAB 4: Laporan & Rekap Validasi Invoice Excel */}
           <button
             onClick={() => setActiveTab('laporan')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'laporan'
-                ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10 rounded-t-lg'
+                ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >

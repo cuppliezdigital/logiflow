@@ -403,7 +403,7 @@ export default function AbsenPulangTab({
     <div className="space-y-6">
       
       {/* 1. BANNER INFORMASI FASE ABSEN PULANG */}
-      <div className="bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent border-l-4 border-rose-500 p-4 rounded-r-xl">
+      <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">FASE 3: Absen Pulang, Tumbang & Audit Integritas per Bagian</h2>
         <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
           Diisi di akhir shift. Wajib melampirkan foto checkout per bagian kerja gudang 
@@ -690,7 +690,7 @@ export default function AbsenPulangTab({
                       className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         hasCheckedOut
                           ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          : 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
                       }`}
                     >
                       <LogOut className="w-3.5 h-3.5" />
@@ -1249,7 +1249,7 @@ export default function AbsenPulangTab({
                   disabled={!canSubmit || isSubmitting}
                   className={`flex-1 py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
                     canSubmit && !isSubmitting
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
                   }`}
                 >

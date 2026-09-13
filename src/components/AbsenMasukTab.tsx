@@ -359,7 +359,7 @@ export default function AbsenMasukTab({
     <div className="space-y-6">
       
       {/* 1. BANNER INFORMASI FASE ABSEN MASUK DENGAN STANDAR AREA GUDANG */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-l-4 border-amber-500 p-4 rounded-r-xl">
+      <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">FASE 2: Absen Masuk & Serah Terima Pasukan (Apel Gudang)</h2>
         <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
           Diisi saat apel/briefing awal shift. Wajib merekam bukti foto fisik barisan per bagian kerja gudang 
@@ -596,7 +596,7 @@ export default function AbsenMasukTab({
                     className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                       hasCheckedIn
                         ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
                     }`}
                   >
                     <LogIn className="w-3.5 h-3.5" />
@@ -636,7 +636,7 @@ export default function AbsenMasukTab({
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-amber-500" />
+                    <Layers className="w-4 h-4 text-blue-600" />
                     Realisasi Orang Hadir (Fisik Apel)
                   </span>
                   <span className="text-xs font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
@@ -1061,7 +1061,7 @@ export default function AbsenMasukTab({
                   disabled={!canSubmit || isSubmitting}
                   className={`flex-1 py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
                     canSubmit && !isSubmitting
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
                   }`}
                 >
