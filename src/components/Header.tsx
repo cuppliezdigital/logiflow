@@ -51,7 +51,7 @@ export default function Header({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-extrabold tracking-tight text-white">
-                  LOGI<span className="text-sky-400">FLOW</span>
+                  Absen<span className="text-sky-400">si</span>
                 </h1>
                 <span className="text-xs bg-sky-500/20 text-sky-300 font-semibold px-2 py-0.5 rounded-full border border-sky-500/30">
                   Manpower Control

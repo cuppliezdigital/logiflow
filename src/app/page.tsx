@@ -160,7 +160,7 @@ export default function Home() {
       {/* 3. FOOTER APLIKASI */}
       <footer className="bg-white border-t border-slate-200 py-4 mt-auto text-center text-xs text-slate-400">
         <p>
-          &copy; {new Date().getFullYear()} <strong className="text-slate-700 font-bold">LOGIFLOW</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
+          &copy; {new Date().getFullYear()} <strong className="text-slate-700 font-bold">Absensi</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
         </p>
       </footer>
 

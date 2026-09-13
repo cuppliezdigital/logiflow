@@ -8,7 +8,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'LOGIFLOW - Sistem Monitoring Manpower & Fulfillment Logistik',
+  title: 'Absensi - Sistem Monitoring Manpower & Fulfillment Logistik',
   description: 'Aplikasi kontrol kehadiran, fulfillment target, dan rekap billing tenaga kerja vendor logistik.',
 };
 
