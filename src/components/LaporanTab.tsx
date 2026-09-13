@@ -28,7 +28,9 @@ import {
   ZoomIn,
   Eye,
   ArrowUpRight,
-  Clock
+  Clock,
+  LayoutGrid,
+  Table
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
 import { convertTo24Hour } from '@/components/AbsenPulangTab';
@@ -54,6 +56,11 @@ export default function LaporanTab({
   const [reportData, setReportData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // State mode tampilan: 'MATRIX' (Format Matriks Lapangan seperti di foto) vs 'TABLE' (Detail Baris)
+  const [viewMode, setViewMode] = useState<'MATRIX' | 'TABLE'>('MATRIX');
+  // State filter shift pada tampilan matriks (ALL, atau nama shift spesifik)
+  const [matrixShiftFilter, setMatrixShiftFilter] = useState<string>('ALL');
 
   // State untuk pop-up modal detail interaktif (ketika kotak Pulang Utuh / Total Tumbang diklik)
   const [detailModalType, setDetailModalType] = useState<'PULANG' | 'TUMBANG' | null>(null);
@@ -171,6 +178,87 @@ export default function LaporanTab({
 
   // Ekstrak data kepulangan selesai shift per vendor untuk modal drill-down
   const allPulangRecords = records.filter((r: any) => !!r.attendanceIn?.attendanceOut);
+
+  // --------------------------------------------------------------------------
+  // LOGIKA KALKULASI MATRIKS OPERASIONAL STANDAR LAPANGAN GUDANG
+  // --------------------------------------------------------------------------
+  const matrixVendors: string[] = (Array.from(new Set(records.map((r: any) => String(r.vendor.name)))) as string[]).sort();
+  const matrixShifts: string[] = Array.from(new Set(records.map((r: any) => String(r.shift.name)))) as string[];
+
+  const matrixFilteredRecords = matrixShiftFilter === 'ALL'
+    ? records
+    : records.filter((r: any) => r.shift.name === matrixShiftFilter);
+
+  // Helper kalkulasi statistik per vendor untuk matriks
+  const getVendorStats = (vendorName: string) => {
+    const vRecords = matrixFilteredRecords.filter((r: any) => r.vendor.name === vendorName);
+    let masukReg = 0;
+    let masukAdd = 0;
+    let pulangReg = 0;
+    let pulangAdd = 0;
+    let tumbangReg = 0;
+    let tumbangAdd = 0;
+
+    vRecords.forEach((r: any) => {
+      if (r.attendanceIn) {
+        masukReg += (r.attendanceIn.actualRegular ?? r.attendanceIn.actualHeadcount ?? 0);
+        masukAdd += (r.attendanceIn.actualAdditional ?? 0);
+      }
+      const out = r.attendanceIn?.attendanceOut;
+      if (out) {
+        pulangReg += (out.pulangRegular ?? out.pulangHeadcount ?? 0);
+        pulangAdd += (out.pulangAdditional ?? 0);
+        tumbangReg += (out.tumbangRegular ?? 0);
+        tumbangAdd += (out.tumbangAdditional ?? 0);
+      }
+    });
+
+    const totalMasuk = masukReg + masukAdd;
+    const totalPulang = pulangReg + pulangAdd;
+    const totalTumbang = tumbangReg + tumbangAdd;
+    const retensi = totalMasuk > 0 ? Math.round((totalPulang / totalMasuk) * 100) : 100;
+    const balance = totalMasuk - (totalPulang + totalTumbang);
+
+    return { masukReg, masukAdd, totalMasuk, pulangReg, pulangAdd, totalPulang, tumbangReg, tumbangAdd, totalTumbang, retensi, balance };
+  };
+
+  // Kalkulasi total gudang (seluruh vendor)
+  const warehouseStats = matrixVendors.reduce((acc, vName) => {
+    const s = getVendorStats(vName);
+    acc.masukReg += s.masukReg;
+    acc.masukAdd += s.masukAdd;
+    acc.totalMasuk += s.totalMasuk;
+    acc.pulangReg += s.pulangReg;
+    acc.pulangAdd += s.pulangAdd;
+    acc.totalPulang += s.totalPulang;
+    acc.tumbangReg += s.tumbangReg;
+    acc.tumbangAdd += s.tumbangAdd;
+    acc.totalTumbang += s.totalTumbang;
+    return acc;
+  }, {
+    masukReg: 0, masukAdd: 0, totalMasuk: 0,
+    pulangReg: 0, pulangAdd: 0, totalPulang: 0,
+    tumbangReg: 0, tumbangAdd: 0, totalTumbang: 0,
+  });
+
+  const warehouseRetensi = warehouseStats.totalMasuk > 0 
+    ? Math.round((warehouseStats.totalPulang / warehouseStats.totalMasuk) * 100) 
+    : 100;
+  const warehouseBalance = warehouseStats.totalMasuk - (warehouseStats.totalPulang + warehouseStats.totalTumbang);
+
+  // Palet warna badge header masing-masing vendor seperti di foto referensi
+  const VENDOR_COLOR_PRESETS = [
+    'bg-emerald-600 text-white',
+    'bg-amber-600 text-white',
+    'bg-blue-600 text-white',
+    'bg-purple-600 text-white',
+    'bg-indigo-600 text-white',
+    'bg-rose-600 text-white',
+    'bg-teal-600 text-white',
+    'bg-orange-600 text-white',
+    'bg-cyan-600 text-white',
+    'bg-fuchsia-600 text-white',
+  ];
 
   return (
     <div className="space-y-6">
@@ -321,24 +409,369 @@ export default function LaporanTab({
         </div>
       </div>
 
-      {/* 4. TABEL DETAIL DATA REKAP (1 BARIS PER VENDOR PER SHIFT) */}
+      {/* 4. DUAL MODE: MATRIKS OPERASIONAL STANDAR LAPANGAN & TABEL DETAIL BARIS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-bold text-sm text-slate-900">
-            Daftar Detail Operasional ({records.length} Plotingan Vendor)
-          </h3>
-          <span className="text-xs text-slate-400">Periode: {startDate} s.d. {endDate}</span>
+        
+        {/* Header Seksi & Kontrol Switcher Mode */}
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-sm text-slate-900">
+                {viewMode === 'MATRIX' ? 'Format Matriks Standar Operasional Manpower' : 'Daftar Detail Transaksional Per Vendor'}
+              </h3>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800">
+                {records.length} Plotingan
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Periode: {startDate} s.d. {endDate} {selectedVendorId !== 'ALL' ? `• Filter Vendor Terpilih` : '• Seluruh Vendor'}
+            </p>
+          </div>
+
+          {/* Tombol Pengalih Mode & Filter Shift Matriks */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Filter Shift Khusus Matriks */}
+            {viewMode === 'MATRIX' && matrixShifts.length > 1 && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs shadow-2xs">
+                <span className="text-[11px] font-semibold text-slate-500">Shift:</span>
+                <select
+                  value={matrixShiftFilter}
+                  onChange={(e) => setMatrixShiftFilter(e.target.value)}
+                  className="bg-transparent font-black text-slate-900 focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="ALL">Semua Shift</option>
+                  {matrixShifts.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Switcher Tab: Matriks vs Tabel Baris */}
+            <div className="bg-slate-200/70 p-1 rounded-xl flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setViewMode('MATRIX')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'MATRIX'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Matriks Report</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('TABLE')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'TABLE'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>Tabel Baris</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {records.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-sm">
             Tidak ada rekaman data plotingan pada rentang tanggal yang dipilih.
           </div>
+        ) : viewMode === 'MATRIX' ? (
+          /* ================================================================= */
+          /* TAMPILAN MATRIKS EKSEKUTIF (PERSIS SEPERTI FORMAT LAPORAN DI FOTO) */
+          /* ================================================================= */
+          <div className="overflow-x-auto p-4">
+            <div className="inline-block min-w-full align-middle border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+              <table className="min-w-full text-center text-xs border-collapse">
+                
+                {/* 1. Header Vendor Columns */}
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="py-2.5 px-3 bg-slate-800 text-white font-extrabold uppercase text-[11px] text-left w-48 sticky left-0 z-20">
+                      PARAMETER UTAMA
+                    </th>
+                    <th className="py-2.5 px-3 bg-slate-700 text-slate-200 font-bold uppercase text-[10px] w-36">
+                      KATEGORI
+                    </th>
+                    <th className="py-2.5 px-3 bg-slate-900 text-white font-black text-xs w-28 border-r-2 border-slate-300">
+                      TOTAL GUDANG
+                    </th>
+                    {matrixVendors.map((vName, idx) => {
+                      const colorClass = VENDOR_COLOR_PRESETS[idx % VENDOR_COLOR_PRESETS.length];
+                      return (
+                        <th key={vName} className="py-2.5 px-2 bg-slate-100 min-w-[85px] border-r border-slate-200">
+                          <span className={`inline-block px-2.5 py-1 rounded-md font-black text-[11px] uppercase tracking-wider shadow-2xs ${colorClass}`}>
+                            {vName}
+                          </span>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-200 font-mono">
+                  
+                  {/* ========================================================= */}
+                  {/* SEKSI 1: TOTAL MP MASUK (HIJAU EMERALD)                  */}
+                  {/* ========================================================= */}
+                  {/* Baris Total Masuk */}
+                  <tr className="bg-emerald-600 text-white font-black text-sm">
+                    <td className="py-2.5 px-3 text-left font-sans font-extrabold uppercase sticky left-0 z-10 bg-emerald-600 text-white border-r border-emerald-500">
+                      TOTAL MP MASUK
+                    </td>
+                    <td className="py-2.5 px-3 font-sans font-black bg-emerald-700 text-white uppercase text-xs">
+                      Under 正式工 (TOTAL)
+                    </td>
+                    <td className="py-2.5 px-3 text-base font-black bg-emerald-800 text-white border-r-2 border-slate-300">
+                      {warehouseStats.totalMasuk}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`masuk-tot-${vName}`} className="py-2.5 px-2 border-r border-emerald-500/50">
+                        {getVendorStats(vName).totalMasuk}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Baris Masuk Reguler */}
+                  <tr className="bg-emerald-50/50 hover:bg-emerald-50/80 text-slate-800 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      TOTAL MP MASUK
+                    </td>
+                    <td className="py-2 px-3 font-sans text-blue-700 font-bold text-xs bg-slate-50">
+                      Reguler
+                    </td>
+                    <td className="py-2 px-3 font-black text-blue-800 bg-blue-50 border-r-2 border-slate-300">
+                      {warehouseStats.masukReg}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`masuk-reg-${vName}`} className="py-2 px-2 border-r border-slate-200 text-blue-700">
+                        {getVendorStats(vName).masukReg}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Baris Masuk Additional */}
+                  <tr className="bg-emerald-50/20 hover:bg-emerald-50/50 text-slate-800 font-bold border-b-2 border-slate-300">
+                    <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      TOTAL MP MASUK
+                    </td>
+                    <td className="py-2 px-3 font-sans text-amber-700 font-bold text-xs bg-slate-50">
+                      Add
+                    </td>
+                    <td className="py-2 px-3 font-black text-amber-800 bg-amber-50 border-r-2 border-slate-300">
+                      {warehouseStats.masukAdd}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`masuk-add-${vName}`} className="py-2 px-2 border-r border-slate-200 text-amber-700">
+                        {getVendorStats(vName).masukAdd}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* ========================================================= */}
+                  {/* SEKSI 2: TOTAL MP PULANG (MERAH / CORAL)                   */}
+                  {/* ========================================================= */}
+                  {/* Baris Total Pulang */}
+                  <tr className="bg-rose-600 text-white font-black text-sm">
+                    <td className="py-2.5 px-3 text-left font-sans font-extrabold uppercase sticky left-0 z-10 bg-rose-600 text-white border-r border-rose-500">
+                      Total MP PULANG
+                    </td>
+                    <td className="py-2.5 px-3 font-sans font-black bg-rose-700 text-white uppercase text-xs">
+                      Under 正式工 (TOTAL)
+                    </td>
+                    <td className="py-2.5 px-3 text-base font-black bg-rose-800 text-white border-r-2 border-slate-300">
+                      {warehouseStats.totalPulang}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`pulang-tot-${vName}`} className="py-2.5 px-2 border-r border-rose-500/50">
+                        {getVendorStats(vName).totalPulang}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Baris Pulang Reguler */}
+                  <tr className="bg-rose-50/50 hover:bg-rose-50/80 text-slate-800 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Total MP PULANG
+                    </td>
+                    <td className="py-2 px-3 font-sans text-blue-700 font-bold text-xs bg-slate-50">
+                      Reguler
+                    </td>
+                    <td className="py-2 px-3 font-black text-blue-800 bg-blue-50 border-r-2 border-slate-300">
+                      {warehouseStats.pulangReg}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`pulang-reg-${vName}`} className="py-2 px-2 border-r border-slate-200 text-blue-700">
+                        {getVendorStats(vName).pulangReg}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Baris Pulang Additional */}
+                  <tr className="bg-rose-50/20 hover:bg-rose-50/50 text-slate-800 font-bold border-b-2 border-slate-300">
+                    <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Total MP PULANG
+                    </td>
+                    <td className="py-2 px-3 font-sans text-amber-700 font-bold text-xs bg-slate-50">
+                      Add
+                    </td>
+                    <td className="py-2 px-3 font-black text-amber-800 bg-amber-50 border-r-2 border-slate-300">
+                      {warehouseStats.pulangAdd}
+                    </td>
+                    {matrixVendors.map((vName) => (
+                      <td key={`pulang-add-${vName}`} className="py-2 px-2 border-r border-slate-200 text-amber-700">
+                        {getVendorStats(vName).pulangAdd}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* ========================================================= */}
+                  {/* SEKSI 3: TUMBANG DI JAM KERJA (BIRU / AMBER)              */}
+                  {/* ========================================================= */}
+                  {/* Tumbang Reguler */}
+                  <tr className="bg-slate-50/60 hover:bg-slate-100/60 text-slate-700 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-800 font-bold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Tumbang Reguler
+                    </td>
+                    <td className="py-2 px-3 font-sans text-blue-600 font-semibold text-xs bg-slate-50">
+                      Reguler
+                    </td>
+                    <td className="py-2 px-3 font-black text-slate-900 border-r-2 border-slate-300">
+                      <span className={warehouseStats.tumbangReg > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-slate-400'}>
+                        {warehouseStats.tumbangReg}
+                      </span>
+                    </td>
+                    {matrixVendors.map((vName) => {
+                      const count = getVendorStats(vName).tumbangReg;
+                      return (
+                        <td key={`tumbang-reg-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                          <span className={count > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-slate-400'}>
+                            {count}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Tumbang Add */}
+                  <tr className="bg-slate-50/30 hover:bg-slate-100/60 text-slate-700 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-800 font-bold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Tumbang Add
+                    </td>
+                    <td className="py-2 px-3 font-sans text-amber-600 font-semibold text-xs bg-slate-50">
+                      Add
+                    </td>
+                    <td className="py-2 px-3 font-black text-slate-900 border-r-2 border-slate-300">
+                      <span className={warehouseStats.tumbangAdd > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-slate-400'}>
+                        {warehouseStats.tumbangAdd}
+                      </span>
+                    </td>
+                    {matrixVendors.map((vName) => {
+                      const count = getVendorStats(vName).tumbangAdd;
+                      return (
+                        <td key={`tumbang-add-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                          <span className={count > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-slate-400'}>
+                            {count}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Total Tumbang */}
+                  <tr className="bg-slate-100 font-black text-slate-900 border-b-2 border-slate-300">
+                    <td className="py-2.5 px-3 text-left font-sans font-black text-xs uppercase sticky left-0 z-10 bg-slate-100 border-r border-slate-200">
+                      TOTAL TUMBANG
+                    </td>
+                    <td className="py-2.5 px-3 font-sans uppercase text-xs bg-slate-200 text-slate-800">
+                      TOTAL
+                    </td>
+                    <td className="py-2.5 px-3 font-black text-sm border-r-2 border-slate-300">
+                      <span className={warehouseStats.totalTumbang > 0 ? 'text-rose-600 bg-rose-100 px-2.5 py-0.5 rounded font-black' : 'text-slate-500'}>
+                        {warehouseStats.totalTumbang}
+                      </span>
+                    </td>
+                    {matrixVendors.map((vName) => {
+                      const count = getVendorStats(vName).totalTumbang;
+                      return (
+                        <td key={`tumbang-tot-${vName}`} className="py-2.5 px-2 border-r border-slate-200">
+                          <span className={count > 0 ? 'text-rose-600 bg-rose-100 px-2 py-0.5 rounded font-black' : 'text-slate-500'}>
+                            {count}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* ========================================================= */}
+                  {/* SEKSI 4: RETENSI & AUDIT BALANCE (HASIL FORMULA)           */}
+                  {/* ========================================================= */}
+                  {/* Tingkat Retensi */}
+                  <tr className="bg-blue-50/40 text-slate-800 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-700 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Tingkat Retensi (%)
+                    </td>
+                    <td className="py-2 px-3 font-sans text-slate-600 text-xs bg-slate-50">
+                      Retensi
+                    </td>
+                    <td className="py-2 px-3 font-black border-r-2 border-slate-300">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-black ${warehouseRetensi >= 95 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {warehouseRetensi}%
+                      </span>
+                    </td>
+                    {matrixVendors.map((vName) => {
+                      const ret = getVendorStats(vName).retensi;
+                      return (
+                        <td key={`retensi-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${ret >= 95 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {ret}%
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Validasi Selisih Audit (Masuk - (Pulang + Tumbang)) */}
+                  <tr className="bg-slate-50 text-slate-800 font-bold">
+                    <td className="py-2 px-3 text-left font-sans text-slate-700 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                      Validasi Audit (Selisih)
+                    </td>
+                    <td className="py-2 px-3 font-sans text-slate-600 text-xs bg-slate-50">
+                      Balance (0=OK)
+                    </td>
+                    <td className="py-2 px-3 font-black border-r-2 border-slate-300">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${warehouseBalance === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {warehouseBalance === 0 ? '0 (Seimbang)' : `${warehouseBalance} Selisih`}
+                      </span>
+                    </td>
+                    {matrixVendors.map((vName) => {
+                      const bal = getVendorStats(vName).balance;
+                      return (
+                        <td key={`bal-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${bal === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-100 text-rose-800'}`}>
+                            {bal === 0 ? '0 (OK)' : bal}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
+          /* ================================================================= */
+          /* TAMPILAN TABEL BARIS TRANSAKSIONAL (1 BARIS PER PLOTINGAN VENDOR) */
+          /* ================================================================= */
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
               <thead className="bg-slate-50 text-[11px] uppercase font-bold text-slate-700 border-b border-slate-200">
-                {/* Header Tabel Laporan: Kolom Tumbang dipindah sebelum Total Pulang, dan Total Akhir dihapus */}
                 <tr>
                   <th className="py-3 px-3">Tanggal</th>
                   <th className="py-3 px-3">Vendor</th>
@@ -350,9 +783,7 @@ export default function LaporanTab({
                   <th className="py-3 px-3 text-center">Fulfill (%)</th>
                   <th className="py-3 px-3 text-center">Pulang Reg</th>
                   <th className="py-3 px-3 text-center">Pulang Add</th>
-                  {/* Kolom Tumbang ditukar ke sini (sebelum Total Pulang) */}
                   <th className="py-3 px-3 text-center text-amber-700">Tumbang</th>
-                  {/* Kolom Total Pulang setelah Tumbang */}
                   <th className="py-3 px-3 text-center text-blue-700">Total Pulang</th>
                 </tr>
               </thead>
@@ -375,13 +806,8 @@ export default function LaporanTab({
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
-                      {/* Tanggal */}
                       <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">{r.date}</td>
-                      
-                      {/* Nama Vendor */}
                       <td className="py-3 px-3 font-extrabold text-slate-800 whitespace-nowrap">{r.vendor.name}</td>
-                      
-                      {/* Shift & Jam Kerja */}
                       <td className="py-3 px-3 whitespace-nowrap">
                         <div className="flex items-center gap-1 font-semibold text-slate-700">
                           {r.shift.name.toLowerCase().includes('pagi') ? (
@@ -395,28 +821,10 @@ export default function LaporanTab({
                           <span className="text-[10px] text-slate-400 block">{r.workingHours}</span>
                         )}
                       </td>
-
-                      {/* Target MP */}
-                      <td className="py-3 px-3 text-center font-extrabold text-slate-900">
-                        {targetTotal}
-                      </td>
-
-                      {/* Masuk Regular */}
-                      <td className="py-3 px-3 text-center font-bold text-blue-700">
-                        {r.attendanceIn ? masukReg : '-'}
-                      </td>
-
-                      {/* Masuk Additional */}
-                      <td className="py-3 px-3 text-center font-bold text-amber-700">
-                        {r.attendanceIn ? masukAdd : '-'}
-                      </td>
-
-                      {/* Total Masuk */}
-                      <td className="py-3 px-3 text-center font-black text-emerald-600">
-                        {r.attendanceIn ? masukTotal : '-'}
-                      </td>
-
-                      {/* Fulfillment Rate */}
+                      <td className="py-3 px-3 text-center font-extrabold text-slate-900">{targetTotal}</td>
+                      <td className="py-3 px-3 text-center font-bold text-blue-700">{r.attendanceIn ? masukReg : '-'}</td>
+                      <td className="py-3 px-3 text-center font-bold text-amber-700">{r.attendanceIn ? masukAdd : '-'}</td>
+                      <td className="py-3 px-3 text-center font-black text-emerald-600">{r.attendanceIn ? masukTotal : '-'}</td>
                       <td className="py-3 px-3 text-center font-bold">
                         {r.attendanceIn ? (
                           <span className={fulfillRate >= 100 ? 'text-emerald-700 font-extrabold' : 'text-slate-700'}>
@@ -424,18 +832,8 @@ export default function LaporanTab({
                           </span>
                         ) : '-'}
                       </td>
-
-                      {/* Pulang Regular */}
-                      <td className="py-3 px-3 text-center font-bold text-blue-700">
-                        {isClosed ? pulangReg : '-'}
-                      </td>
-
-                      {/* Pulang Additional */}
-                      <td className="py-3 px-3 text-center font-bold text-amber-700">
-                        {isClosed ? pulangAdd : '-'}
-                      </td>
-
-                      {/* Tumbang / Kendala (Posisinya ditukar sebelum Total Pulang) */}
+                      <td className="py-3 px-3 text-center font-bold text-blue-700">{isClosed ? pulangReg : '-'}</td>
+                      <td className="py-3 px-3 text-center font-bold text-amber-700">{isClosed ? pulangAdd : '-'}</td>
                       <td className="py-3 px-3 text-center font-bold text-amber-600">
                         {isClosed ? (
                           <span className={tumbangTotal > 0 ? 'bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-black' : 'text-slate-400'}>
@@ -443,11 +841,7 @@ export default function LaporanTab({
                           </span>
                         ) : '-'}
                       </td>
-
-                      {/* Total Pulang */}
-                      <td className="py-3 px-3 text-center font-black text-blue-600">
-                        {isClosed ? pulangTotal : '-'}
-                      </td>
+                      <td className="py-3 px-3 text-center font-black text-blue-600">{isClosed ? pulangTotal : '-'}</td>
                     </tr>
                   );
                 })}

@@ -1165,24 +1165,18 @@ export default function AbsenPulangTab({
                             </select>
                           </div>
 
-                          {/* Jam Keluar / Izin (Format 24 Jam Murni: 00:00 - 23:59 WIB, Bebas AM/PM) */}
+                          {/* Input Jam Kejadian (Simpel, Bersih, Format 24 Jam) */}
                           <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-amber-600" />
-                                Jam Keluar (24 Jam)
-                              </label>
-                              <span className="text-[9px] font-black text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded">
-                                24 Jam
-                              </span>
-                            </div>
+                            <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">
+                              Jam
+                            </label>
                             <div className="relative flex items-center">
                               <input
                                 type="text"
                                 inputMode="numeric"
                                 required
                                 value={inc.time}
-                                placeholder="Contoh: 23:27"
+                                placeholder="23:27"
                                 maxLength={5}
                                 onChange={(e) => {
                                   // Ambil hanya angka dan titik dua
@@ -1198,21 +1192,18 @@ export default function AbsenPulangTab({
                                   const formatted = convertTo24Hour(e.target.value);
                                   handleUpdateIncident(inc.id, 'time', formatted);
                                 }}
-                                className="w-full text-xs font-black font-mono rounded-lg border border-slate-300 pl-2.5 pr-16 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className="w-full text-xs font-bold font-mono rounded-lg border border-slate-300 pl-2.5 pr-16 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                               />
-                              {/* Tombol Cepat: Jam Sekarang (WIB 24 Jam) */}
+                              {/* Tombol Cepat: Jam Sekarang */}
                               <button
                                 type="button"
                                 onClick={() => handleUpdateIncident(inc.id, 'time', getCurrent24HourTime())}
-                                className="absolute right-1 px-1.5 py-0.5 text-[10px] font-extrabold bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors cursor-pointer"
-                                title="Set ke jam saat ini (WIB)"
+                                className="absolute right-1 px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors cursor-pointer"
+                                title="Set ke jam saat ini"
                               >
                                 Sekarang
                               </button>
                             </div>
-                            <span className="text-[9px] text-slate-400 block mt-0.5 font-medium">
-                              00:00 s.d. 23:59 WIB (Tanpa AM/PM)
-                            </span>
                           </div>
 
                           {/* Jenis Kendala */}
