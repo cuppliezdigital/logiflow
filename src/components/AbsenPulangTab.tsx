@@ -861,7 +861,7 @@ export default function AbsenPulangTab({
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-xs font-bold text-slate-700 uppercase">
-                        Foto Bukti Surat Dokter / Klinik P3K (Wajib)
+                        Foto Bukti (Wajib)
                       </label>
                       <span className="text-[10px] text-rose-600 font-bold">*Wajib dilampirkan</span>
                     </div>
@@ -878,13 +878,13 @@ export default function AbsenPulangTab({
                           <X className="w-3.5 h-3.5" />
                         </button>
                         <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[10px] font-bold text-center py-0.5">
-                          Bukti Surat Klinik Terlampir
+                          Foto Bukti Terlampir
                         </span>
                       </div>
                     ) : (
                       <label className="flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-3 bg-white hover:bg-amber-50 transition-colors cursor-pointer text-xs font-bold text-amber-700">
                         <Camera className="w-4 h-4 text-amber-600" />
-                        <span>Unggah Foto Surat Klinik P3K / Dokter</span>
+                        <span>Unggah Foto Bukti</span>
                         <input
                           type="file"
                           accept="image/*"
