@@ -101,18 +101,23 @@ export default function AbsenPulangTab({
   // HELPER PENGELOLAAN SLOT FOTO DINAMIS CHECKOUT
   // --------------------------------------------------------------------------
 
-  // Tambah slot foto checkout Regular
-  const handleAddPulangRegSlot = () => {
+  // Tambah slot foto checkout Regular (bisa insert di bawah slot tertentu atau di akhir)
+  const handleAddPulangRegSlot = (insertIndex?: number) => {
     const nextSection = SECTION_PRESETS[pulangRegPhotoSlots.length % SECTION_PRESETS.length] || 'Bongkar';
-    setPulangRegPhotoSlots((prev) => [
-      ...prev,
-      {
-        id: `out-reg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        section: nextSection,
-        file: null,
-        preview: null,
-      },
-    ]);
+    const newSlot: SectionPhotoSlot = {
+      id: `out-reg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      section: nextSection,
+      file: null,
+      preview: null,
+    };
+    setPulangRegPhotoSlots((prev) => {
+      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
+        const updated = [...prev];
+        updated.splice(insertIndex + 1, 0, newSlot);
+        return updated;
+      }
+      return [...prev, newSlot];
+    });
   };
 
   // Hapus slot foto checkout Regular
@@ -136,18 +141,23 @@ export default function AbsenPulangTab({
     );
   };
 
-  // Tambah slot foto checkout Additional
-  const handleAddPulangAddSlot = () => {
+  // Tambah slot foto checkout Additional (bisa insert di bawah slot tertentu atau di akhir)
+  const handleAddPulangAddSlot = (insertIndex?: number) => {
     const nextSection = SECTION_PRESETS[pulangAddPhotoSlots.length % SECTION_PRESETS.length] || 'Sortir';
-    setPulangAddPhotoSlots((prev) => [
-      ...prev,
-      {
-        id: `out-add-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        section: nextSection,
-        file: null,
-        preview: null,
-      },
-    ]);
+    const newSlot: SectionPhotoSlot = {
+      id: `out-add-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      section: nextSection,
+      file: null,
+      preview: null,
+    };
+    setPulangAddPhotoSlots((prev) => {
+      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
+        const updated = [...prev];
+        updated.splice(insertIndex + 1, 0, newSlot);
+        return updated;
+      }
+      return [...prev, newSlot];
+    });
   };
 
   // Hapus slot foto checkout Additional
@@ -907,11 +917,11 @@ export default function AbsenPulangTab({
                   {/* Tombol Tambah Bagian Checkout Regular */}
                   <button
                     type="button"
-                    onClick={handleAddPulangRegSlot}
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                    onClick={() => handleAddPulangRegSlot()}
+                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    + Tambah Bagian
+                    <span>Tambah Bagian</span>
                   </button>
                 </div>
 
@@ -923,10 +933,11 @@ export default function AbsenPulangTab({
                     </p>
                     <button
                       type="button"
-                      onClick={handleAddPulangRegSlot}
-                      className="mt-1.5 text-xs font-bold text-blue-700 underline hover:text-blue-900 cursor-pointer"
+                      onClick={() => handleAddPulangRegSlot()}
+                      className="mt-1.5 text-xs font-bold text-blue-700 underline hover:text-blue-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
                     >
-                      + Tambah Slot Foto Checkout Regular
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Slot Foto Checkout Regular</span>
                     </button>
                   </div>
                 ) : (
@@ -970,15 +981,26 @@ export default function AbsenPulangTab({
                             />
                           </div>
 
-                          {/* Tombol Hapus Slot */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePulangRegSlot(slot.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Hapus slot ini"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleAddPulangRegSlot(sIdx)}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                              title="Tambah Bagian Baru di Bawah Ini"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePulangRegSlot(slot.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus slot ini"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Upload Foto & Pratinjau */}
@@ -1021,6 +1043,16 @@ export default function AbsenPulangTab({
                         )}
                       </div>
                     ))}
+
+                    {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddPulangRegSlot()}
+                      className="w-full py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white hover:bg-blue-50 text-blue-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Bagian Regular</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1050,11 +1082,11 @@ export default function AbsenPulangTab({
                     {/* Tombol Tambah Bagian Checkout Additional */}
                     <button
                       type="button"
-                      onClick={handleAddPulangAddSlot}
-                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      onClick={() => handleAddPulangAddSlot()}
+                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      + Tambah Bagian
+                      <span>Tambah Bagian</span>
                     </button>
                   </div>
 
@@ -1066,10 +1098,11 @@ export default function AbsenPulangTab({
                       </p>
                       <button
                         type="button"
-                        onClick={handleAddPulangAddSlot}
-                        className="mt-1.5 text-xs font-bold text-amber-700 underline hover:text-amber-900 cursor-pointer"
+                        onClick={() => handleAddPulangAddSlot()}
+                        className="mt-1.5 text-xs font-bold text-amber-700 underline hover:text-amber-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
                       >
-                        + Tambah Slot Foto Checkout Additional
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah Slot Foto Checkout Additional</span>
                       </button>
                     </div>
                   ) : (
@@ -1113,15 +1146,26 @@ export default function AbsenPulangTab({
                               />
                             </div>
 
-                            {/* Tombol Hapus Slot */}
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePulangAddSlot(slot.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Hapus slot ini"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleAddPulangAddSlot(sIdx)}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                title="Tambah Bagian Baru di Bawah Ini"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Tambah</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePulangAddSlot(slot.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Hapus slot ini"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Upload Foto & Pratinjau */}
@@ -1164,6 +1208,16 @@ export default function AbsenPulangTab({
                           )}
                         </div>
                       ))}
+
+                      {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
+                      <button
+                        type="button"
+                        onClick={() => handleAddPulangAddSlot()}
+                        className="w-full py-2 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah Bagian Additional</span>
+                      </button>
                     </div>
                   )}
                 </div>

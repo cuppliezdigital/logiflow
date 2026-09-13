@@ -89,19 +89,24 @@ export default function AbsenMasukTab({
   // HELPER PENGELOLAAN SLOT FOTO DINAMIS
   // --------------------------------------------------------------------------
 
-  // Tambah 1 slot foto baru untuk kategori Regular
-  const handleAddRegularSlot = () => {
+  // Tambah 1 slot foto baru untuk kategori Regular (bisa insert di bawah slot tertentu atau di akhir)
+  const handleAddRegularSlot = (insertIndex?: number) => {
     // Tentukan rekomendasi bagian default berdasarkan jumlah slot yang sudah ada
     const nextSection = SECTION_PRESETS[regularPhotoSlots.length % SECTION_PRESETS.length] || 'Bongkar';
-    setRegularPhotoSlots((prev) => [
-      ...prev,
-      {
-        id: `reg-slot-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        section: nextSection,
-        file: null,
-        preview: null,
-      },
-    ]);
+    const newSlot: SectionPhotoSlot = {
+      id: `reg-slot-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      section: nextSection,
+      file: null,
+      preview: null,
+    };
+    setRegularPhotoSlots((prev) => {
+      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
+        const updated = [...prev];
+        updated.splice(insertIndex + 1, 0, newSlot);
+        return updated;
+      }
+      return [...prev, newSlot];
+    });
   };
 
   // Hapus slot foto Regular tertentu
@@ -125,18 +130,23 @@ export default function AbsenMasukTab({
     );
   };
 
-  // Tambah 1 slot foto baru untuk kategori Additional
-  const handleAddAdditionalSlot = () => {
+  // Tambah 1 slot foto baru untuk kategori Additional (bisa insert di bawah slot tertentu atau di akhir)
+  const handleAddAdditionalSlot = (insertIndex?: number) => {
     const nextSection = SECTION_PRESETS[additionalPhotoSlots.length % SECTION_PRESETS.length] || 'Sortir';
-    setAdditionalPhotoSlots((prev) => [
-      ...prev,
-      {
-        id: `add-slot-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        section: nextSection,
-        file: null,
-        preview: null,
-      },
-    ]);
+    const newSlot: SectionPhotoSlot = {
+      id: `add-slot-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      section: nextSection,
+      file: null,
+      preview: null,
+    };
+    setAdditionalPhotoSlots((prev) => {
+      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
+        const updated = [...prev];
+        updated.splice(insertIndex + 1, 0, newSlot);
+        return updated;
+      }
+      return [...prev, newSlot];
+    });
   };
 
   // Hapus slot foto Additional tertentu
@@ -709,11 +719,11 @@ export default function AbsenMasukTab({
                   {/* Tombol Tambah Foto Bagian Regular */}
                   <button
                     type="button"
-                    onClick={handleAddRegularSlot}
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                    onClick={() => handleAddRegularSlot()}
+                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    + Tambah Bagian
+                    <span>Tambah Bagian</span>
                   </button>
                 </div>
 
@@ -725,10 +735,11 @@ export default function AbsenMasukTab({
                     </p>
                     <button
                       type="button"
-                      onClick={handleAddRegularSlot}
-                      className="mt-2 text-xs font-bold text-blue-700 underline hover:text-blue-900 cursor-pointer"
+                      onClick={() => handleAddRegularSlot()}
+                      className="mt-2 text-xs font-bold text-blue-700 underline hover:text-blue-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
                     >
-                      + Tambah Foto Bagian Regular Sekarang
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Foto Bagian Regular Sekarang</span>
                     </button>
                   </div>
                 ) : (
@@ -773,15 +784,26 @@ export default function AbsenMasukTab({
                             />
                           </div>
 
-                          {/* Tombol Hapus Slot */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveRegularSlot(slot.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Hapus slot bagian ini"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleAddRegularSlot(sIdx)}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                              title="Tambah Bagian Baru di Bawah Ini"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRegularSlot(slot.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus slot bagian ini"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Upload Foto & Pratinjau */}
@@ -824,6 +846,16 @@ export default function AbsenMasukTab({
                         )}
                       </div>
                     ))}
+
+                    {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddRegularSlot()}
+                      className="w-full py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white hover:bg-blue-50 text-blue-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Bagian Regular</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -853,11 +885,11 @@ export default function AbsenMasukTab({
                     {/* Tombol Tambah Foto Bagian Additional */}
                     <button
                       type="button"
-                      onClick={handleAddAdditionalSlot}
-                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      onClick={() => handleAddAdditionalSlot()}
+                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      + Tambah Bagian
+                      <span>Tambah Bagian</span>
                     </button>
                   </div>
 
@@ -869,10 +901,11 @@ export default function AbsenMasukTab({
                       </p>
                       <button
                         type="button"
-                        onClick={handleAddAdditionalSlot}
-                        className="mt-2 text-xs font-bold text-amber-700 underline hover:text-amber-900 cursor-pointer"
+                        onClick={() => handleAddAdditionalSlot()}
+                        className="mt-2 text-xs font-bold text-amber-700 underline hover:text-amber-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
                       >
-                        + Tambah Foto Bagian Additional Sekarang
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah Foto Bagian Additional Sekarang</span>
                       </button>
                     </div>
                   ) : (
@@ -917,15 +950,26 @@ export default function AbsenMasukTab({
                               />
                             </div>
 
-                            {/* Tombol Hapus Slot */}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAdditionalSlot(slot.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Hapus slot bagian ini"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleAddAdditionalSlot(sIdx)}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                title="Tambah Bagian Baru di Bawah Ini"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Tambah</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAdditionalSlot(slot.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Hapus slot bagian ini"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Upload Foto & Pratinjau */}
@@ -968,6 +1012,16 @@ export default function AbsenMasukTab({
                           )}
                         </div>
                       ))}
+
+                      {/* Tombol Tambah di Bawah List agar Tidak Perlu Scroll ke Atas */}
+                      <button
+                        type="button"
+                        onClick={() => handleAddAdditionalSlot()}
+                        className="w-full py-2 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambah Bagian Additional</span>
+                      </button>
                     </div>
                   )}
                 </div>
