@@ -25,18 +25,18 @@ async function main() {
     }
   }
 
-  // 2. 10 VENDOR MITRA RESMI LOGIFLOW
+  // 2. 10 VENDOR MITRA RESMI LOGIFLOW (SINGKATAN RESMI)
   const vendors = [
-    { name: 'PT Maximus Integrasi Indonesia' },
-    { name: 'PT Sahabat Dua Muda' },
-    { name: 'PT BAL Logistik Internasional' },
-    { name: 'PT Esa Gemilang Sakti' },
-    { name: 'PT Dollar Information' },
-    { name: 'PT Majapahit Solusi Bersama' },
-    { name: 'PT Karya Megah Intemusa' },
-    { name: 'PT Solusi Mitra Pertama' },
-    { name: 'PT Dwi Rajendra Samudra' },
-    { name: 'PT Dewi Buana Mulia' },
+    { name: 'MAXIMUS' },
+    { name: 'SDM' },
+    { name: 'BAL' },
+    { name: 'ESA' },
+    { name: 'DOLLAR' },
+    { name: 'MYROBIN' },
+    { name: 'INTERNUSA' },
+    { name: 'SMP' },
+    { name: 'RAJENDRA' },
+    { name: 'BUANNA' },
   ];
 
   for (const v of vendors) {

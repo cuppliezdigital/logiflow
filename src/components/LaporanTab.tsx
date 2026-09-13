@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
 import { convertTo24Hour } from '@/components/AbsenPulangTab';
+import { getShortVendorName } from '@/lib/vendorMapping';
 
 // Definisi props untuk komponen LaporanTab
 interface LaporanTabProps {
@@ -151,7 +152,7 @@ export default function LaporanTab({
         incidents.forEach((inc: any) => {
           allTumbangIncidents.push({
             date: r.date,
-            vendorName: r.vendor.name,
+            vendorName: getShortVendorName(r.vendor.name),
             shiftName: r.shift.name,
             category: inc.category || 'REGULAR',
             // Format waktu 24 jam murni tanpa AM/PM
@@ -164,7 +165,7 @@ export default function LaporanTab({
       } else {
         allTumbangIncidents.push({
           date: r.date,
-          vendorName: r.vendor.name,
+          vendorName: getShortVendorName(r.vendor.name),
           shiftName: r.shift.name,
           category: (out.tumbangRegular ?? 0) > 0 ? 'REGULAR' : 'ADDITIONAL',
           time: '-',
@@ -182,7 +183,7 @@ export default function LaporanTab({
   // --------------------------------------------------------------------------
   // LOGIKA KALKULASI MATRIKS OPERASIONAL STANDAR LAPANGAN GUDANG
   // --------------------------------------------------------------------------
-  const matrixVendors: string[] = (Array.from(new Set(records.map((r: any) => String(r.vendor.name)))) as string[]).sort();
+  const matrixVendors: string[] = (Array.from(new Set(records.map((r: any) => getShortVendorName(r.vendor?.name)))) as string[]).sort();
   const matrixShifts: string[] = Array.from(new Set(records.map((r: any) => String(r.shift.name)))) as string[];
 
   const matrixFilteredRecords = matrixShiftFilter === 'ALL'
@@ -191,7 +192,7 @@ export default function LaporanTab({
 
   // Helper kalkulasi statistik per vendor untuk matriks
   const getVendorStats = (vendorName: string) => {
-    const vRecords = matrixFilteredRecords.filter((r: any) => r.vendor.name === vendorName);
+    const vRecords = matrixFilteredRecords.filter((r: any) => getShortVendorName(r.vendor?.name) === vendorName);
     let masukReg = 0;
     let masukAdd = 0;
     let pulangReg = 0;
@@ -311,7 +312,7 @@ export default function LaporanTab({
               >
                 <option value="ALL" className="text-slate-900 bg-white font-bold">Semua Vendor</option>
                 {vendors.map((v) => (
-                  <option key={v.id} value={v.id} className="text-slate-900 bg-white font-bold">{v.name}</option>
+                  <option key={v.id} value={v.id} className="text-slate-900 bg-white font-bold">{getShortVendorName(v.name)}</option>
                 ))}
               </select>
             </div>
@@ -521,11 +522,13 @@ export default function LaporanTab({
                   {/* ========================================================= */}
                   {/* Baris Total Masuk */}
                   <tr className="bg-emerald-600 text-white font-black text-sm">
-                    <td className="py-2.5 px-3 text-left font-sans font-extrabold uppercase sticky left-0 z-10 bg-emerald-600 text-white border-r border-emerald-500">
+                    <td className="py-2.5 px-3 text-left font-sans font-black uppercase sticky left-0 z-10 bg-emerald-600 text-white border-r border-emerald-500">
                       TOTAL MP MASUK
                     </td>
-                    <td className="py-2.5 px-3 font-sans font-black bg-emerald-700 text-white uppercase text-xs">
-                      Under 正式工 (TOTAL)
+                    <td className="py-2.5 px-3 font-sans font-black bg-emerald-700 text-white text-xs">
+                      <span className="inline-flex items-center gap-1 bg-emerald-950/40 text-emerald-100 px-2 py-0.5 rounded-md font-black text-[11px] tracking-wider uppercase border border-emerald-400/40 shadow-2xs">
+                        TOTAL (REG + ADD)
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-base font-black bg-emerald-800 text-white border-r-2 border-slate-300">
                       {warehouseStats.totalMasuk}
@@ -542,8 +545,10 @@ export default function LaporanTab({
                     <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
                       TOTAL MP MASUK
                     </td>
-                    <td className="py-2 px-3 font-sans text-blue-700 font-bold text-xs bg-slate-50">
-                      Reguler
+                    <td className="py-2 px-3 font-sans text-xs bg-slate-50">
+                      <span className="inline-flex items-center font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        Reguler
+                      </span>
                     </td>
                     <td className="py-2 px-3 font-black text-blue-800 bg-blue-50 border-r-2 border-slate-300">
                       {warehouseStats.masukReg}
@@ -560,8 +565,10 @@ export default function LaporanTab({
                     <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
                       TOTAL MP MASUK
                     </td>
-                    <td className="py-2 px-3 font-sans text-amber-700 font-bold text-xs bg-slate-50">
-                      Add
+                    <td className="py-2 px-3 font-sans text-xs bg-slate-50">
+                      <span className="inline-flex items-center font-bold text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Additional
+                      </span>
                     </td>
                     <td className="py-2 px-3 font-black text-amber-800 bg-amber-50 border-r-2 border-slate-300">
                       {warehouseStats.masukAdd}
@@ -578,11 +585,13 @@ export default function LaporanTab({
                   {/* ========================================================= */}
                   {/* Baris Total Pulang */}
                   <tr className="bg-rose-600 text-white font-black text-sm">
-                    <td className="py-2.5 px-3 text-left font-sans font-extrabold uppercase sticky left-0 z-10 bg-rose-600 text-white border-r border-rose-500">
-                      Total MP PULANG
+                    <td className="py-2.5 px-3 text-left font-sans font-black uppercase sticky left-0 z-10 bg-rose-600 text-white border-r border-rose-500">
+                      TOTAL MP PULANG
                     </td>
-                    <td className="py-2.5 px-3 font-sans font-black bg-rose-700 text-white uppercase text-xs">
-                      Under 正式工 (TOTAL)
+                    <td className="py-2.5 px-3 font-sans font-black bg-rose-700 text-white text-xs">
+                      <span className="inline-flex items-center gap-1 bg-rose-950/40 text-rose-100 px-2 py-0.5 rounded-md font-black text-[11px] tracking-wider uppercase border border-rose-400/40 shadow-2xs">
+                        TOTAL (REG + ADD)
+                      </span>
                     </td>
                     <td className="py-2.5 px-3 text-base font-black bg-rose-800 text-white border-r-2 border-slate-300">
                       {warehouseStats.totalPulang}
@@ -597,10 +606,12 @@ export default function LaporanTab({
                   {/* Baris Pulang Reguler */}
                   <tr className="bg-rose-50/50 hover:bg-rose-50/80 text-slate-800 font-bold">
                     <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
-                      Total MP PULANG
+                      TOTAL MP PULANG
                     </td>
-                    <td className="py-2 px-3 font-sans text-blue-700 font-bold text-xs bg-slate-50">
-                      Reguler
+                    <td className="py-2 px-3 font-sans text-xs bg-slate-50">
+                      <span className="inline-flex items-center font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        Reguler
+                      </span>
                     </td>
                     <td className="py-2 px-3 font-black text-blue-800 bg-blue-50 border-r-2 border-slate-300">
                       {warehouseStats.pulangReg}
@@ -615,10 +626,12 @@ export default function LaporanTab({
                   {/* Baris Pulang Additional */}
                   <tr className="bg-rose-50/20 hover:bg-rose-50/50 text-slate-800 font-bold border-b-2 border-slate-300">
                     <td className="py-2 px-3 text-left font-sans text-slate-500 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
-                      Total MP PULANG
+                      TOTAL MP PULANG
                     </td>
-                    <td className="py-2 px-3 font-sans text-amber-700 font-bold text-xs bg-slate-50">
-                      Add
+                    <td className="py-2 px-3 font-sans text-xs bg-slate-50">
+                      <span className="inline-flex items-center font-bold text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Additional
+                      </span>
                     </td>
                     <td className="py-2 px-3 font-black text-amber-800 bg-amber-50 border-r-2 border-slate-300">
                       {warehouseStats.pulangAdd}
@@ -807,7 +820,7 @@ export default function LaporanTab({
                   return (
                     <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">{r.date}</td>
-                      <td className="py-3 px-3 font-extrabold text-slate-800 whitespace-nowrap">{r.vendor.name}</td>
+                      <td className="py-3 px-3 font-extrabold text-slate-800 whitespace-nowrap">{getShortVendorName(r.vendor.name)}</td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         <div className="flex items-center gap-1 font-semibold text-slate-700">
                           {r.shift.name.toLowerCase().includes('pagi') ? (
@@ -927,7 +940,7 @@ export default function LaporanTab({
                         return (
                           <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                             <td className="py-2.5 px-3 font-semibold text-slate-900 whitespace-nowrap">{r.date}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{r.vendor.name}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{getShortVendorName(r.vendor.name)}</td>
                             <td className="py-2.5 px-3 whitespace-nowrap">{r.shift.name}</td>
                             <td className="py-2.5 px-3 text-center font-bold text-slate-700">{masukTotal}</td>
                             <td className="py-2.5 px-3 text-center font-bold text-blue-700">{pReg}</td>
@@ -941,7 +954,7 @@ export default function LaporanTab({
                             <td className="py-2.5 px-3 text-center">
                               {photoUrl ? (
                                 <button
-                                  onClick={() => setLightboxPhoto({ url: photoUrl, title: `Foto Checkout ${r.vendor.name} (${r.date} - ${r.shift.name})` })}
+                                  onClick={() => setLightboxPhoto({ url: photoUrl, title: `Foto Checkout ${getShortVendorName(r.vendor.name)} (${r.date} - ${r.shift.name})` })}
                                   className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors cursor-pointer"
                                 >
                                   <Eye className="w-3.5 h-3.5" />

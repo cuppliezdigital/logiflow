@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
 import { convertTo24Hour } from '@/components/AbsenPulangTab';
+import { getShortVendorName } from '@/lib/vendorMapping';
 
 // Helper mengisi sel Excel dengan nilai, tipe, dan rumus formula bawaan
 function setCell(
@@ -72,9 +73,9 @@ export async function GET(request: NextRequest) {
     const wsMatrix: Record<string, any> = {};
     const merges: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> = [];
 
-    // Kumpulkan daftar vendor unik yang terlibat
+    // Kumpulkan daftar vendor unik yang terlibat (dengan nama singkatan resmi)
     const uniqueVendors: string[] = Array.from(
-      new Set(records.map((r) => r.vendor.name))
+      new Set(records.map((r) => getShortVendorName(r.vendor.name)))
     ).sort();
 
     // Kumpulkan daftar shift unik
@@ -111,8 +112,8 @@ export async function GET(request: NextRequest) {
 
       // Baris Header Matriks
       const headerRow = curRow;
-      setCell(wsMatrix, headerRow, 0, 'TOTAL MP MASUK');
-      setCell(wsMatrix, headerRow, 1, 'Under 正式工 (TOTAL)');
+      setCell(wsMatrix, headerRow, 0, 'PARAMETER UTAMA');
+      setCell(wsMatrix, headerRow, 1, 'KATEGORI');
       setCell(wsMatrix, headerRow, 2, 'TOTAL GUDANG');
 
       uniqueVendors.forEach((vName, vIdx) => {
@@ -136,14 +137,14 @@ export async function GET(request: NextRequest) {
       const startColLet = 'D';
       const endColLet = XLSX.utils.encode_col(Math.max(3, uniqueVendors.length + 2));
 
-      // Baris 1: TOTAL MP MASUK - TOTAL
+      // Baris 1: TOTAL MP MASUK - TOTAL (REG + ADD)
       setCell(wsMatrix, curRow, 0, 'TOTAL MP MASUK');
-      setCell(wsMatrix, curRow, 1, 'TOTAL');
+      setCell(wsMatrix, curRow, 1, 'TOTAL (REG + ADD)');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rMasukTotal}:${endColLet}${rMasukTotal})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
         const colLet = XLSX.utils.encode_col(3 + vIdx);
         // Formula Masuk Total = Masuk Reg + Masuk Add
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.actualHeadcount || 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, `${colLet}${rMasukReg}+${colLet}${rMasukAdd}`, 'n');
       });
@@ -154,53 +155,53 @@ export async function GET(request: NextRequest) {
       setCell(wsMatrix, curRow, 1, 'Reguler');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rMasukReg}:${endColLet}${rMasukReg})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.actualRegular ?? rec?.attendanceIn?.actualHeadcount ?? 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
       curRow++;
 
-      // Baris 3: TOTAL MP MASUK - Add
+      // Baris 3: TOTAL MP MASUK - Additional
       setCell(wsMatrix, curRow, 0, 'TOTAL MP MASUK');
-      setCell(wsMatrix, curRow, 1, 'Add');
+      setCell(wsMatrix, curRow, 1, 'Additional');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rMasukAdd}:${endColLet}${rMasukAdd})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.actualAdditional ?? 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
       curRow++;
 
-      // Baris 4: Total MP PULANG - TOTAL
-      setCell(wsMatrix, curRow, 0, 'Total MP PULANG');
-      setCell(wsMatrix, curRow, 1, 'TOTAL');
+      // Baris 4: TOTAL MP PULANG - TOTAL (REG + ADD)
+      setCell(wsMatrix, curRow, 0, 'TOTAL MP PULANG');
+      setCell(wsMatrix, curRow, 1, 'TOTAL (REG + ADD)');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rPulangTotal}:${endColLet}${rPulangTotal})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
         const colLet = XLSX.utils.encode_col(3 + vIdx);
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.attendanceOut?.pulangHeadcount || 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, `${colLet}${rPulangReg}+${colLet}${rPulangAdd}`, 'n');
       });
       curRow++;
 
-      // Baris 5: Total MP PULANG - Reguler
-      setCell(wsMatrix, curRow, 0, 'Total MP PULANG');
+      // Baris 5: TOTAL MP PULANG - Reguler
+      setCell(wsMatrix, curRow, 0, 'TOTAL MP PULANG');
       setCell(wsMatrix, curRow, 1, 'Reguler');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rPulangReg}:${endColLet}${rPulangReg})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const out = rec?.attendanceIn?.attendanceOut;
         const val = out ? (out.pulangRegular ?? out.pulangHeadcount) : 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
       curRow++;
 
-      // Baris 6: Total MP PULANG - Add
-      setCell(wsMatrix, curRow, 0, 'Total MP PULANG');
-      setCell(wsMatrix, curRow, 1, 'Add');
+      // Baris 6: TOTAL MP PULANG - Additional
+      setCell(wsMatrix, curRow, 0, 'TOTAL MP PULANG');
+      setCell(wsMatrix, curRow, 1, 'Additional');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rPulangAdd}:${endColLet}${rPulangAdd})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.attendanceOut?.pulangAdditional ?? 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
@@ -211,7 +212,7 @@ export async function GET(request: NextRequest) {
       setCell(wsMatrix, curRow, 1, 'Reguler');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rTumbangReg}:${endColLet}${rTumbangReg})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.attendanceOut?.tumbangRegular ?? 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
@@ -219,10 +220,10 @@ export async function GET(request: NextRequest) {
 
       // Baris 8: Tumbang Add
       setCell(wsMatrix, curRow, 0, 'Tumbang Add');
-      setCell(wsMatrix, curRow, 1, 'Add');
+      setCell(wsMatrix, curRow, 1, 'Additional');
       setCell(wsMatrix, curRow, 2, 0, `SUM(${startColLet}${rTumbangAdd}:${endColLet}${rTumbangAdd})`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.attendanceOut?.tumbangAdditional ?? 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, undefined, 'n');
       });
@@ -234,7 +235,7 @@ export async function GET(request: NextRequest) {
       setCell(wsMatrix, curRow, 2, 0, `C${rTumbangReg}+C${rTumbangAdd}`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
         const colLet = XLSX.utils.encode_col(3 + vIdx);
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const val = rec?.attendanceIn?.attendanceOut?.tumbangHeadcount || 0;
         setCell(wsMatrix, curRow, 3 + vIdx, val, `${colLet}${rTumbangReg}+${colLet}${rTumbangAdd}`, 'n');
       });
@@ -246,7 +247,7 @@ export async function GET(request: NextRequest) {
       setCell(wsMatrix, curRow, 2, 0, `IF(C${rMasukTotal}>0,ROUND(C${rPulangTotal}/C${rMasukTotal}*100,1),100)`, 'n');
       uniqueVendors.forEach((vName, vIdx) => {
         const colLet = XLSX.utils.encode_col(3 + vIdx);
-        const rec = shiftRecords.find((r) => r.vendor.name === vName);
+        const rec = shiftRecords.find((r) => getShortVendorName(r.vendor.name) === vName);
         const inTot = rec?.attendanceIn?.actualHeadcount || 0;
         const outTot = rec?.attendanceIn?.attendanceOut?.pulangHeadcount || 0;
         const ret = inTot > 0 ? Math.round((outTot / inTot) * 100) : 100;
@@ -297,7 +298,7 @@ export async function GET(request: NextRequest) {
             setCell(wsMatrix, curRow, 0, incCounter++);
             setCell(wsMatrix, curRow, 1, r.date);
             setCell(wsMatrix, curRow, 2, r.shift.name);
-            setCell(wsMatrix, curRow, 3, r.vendor.name);
+            setCell(wsMatrix, curRow, 3, getShortVendorName(r.vendor.name));
             setCell(wsMatrix, curRow, 4, inc.category || 'REGULAR');
             setCell(wsMatrix, curRow, 5, inc.time ? convertTo24Hour(inc.time) : '-');
             setCell(wsMatrix, curRow, 6, inc.type || 'Sakit / Klinik');
@@ -308,7 +309,7 @@ export async function GET(request: NextRequest) {
           setCell(wsMatrix, curRow, 0, incCounter++);
           setCell(wsMatrix, curRow, 1, r.date);
           setCell(wsMatrix, curRow, 2, r.shift.name);
-          setCell(wsMatrix, curRow, 3, r.vendor.name);
+          setCell(wsMatrix, curRow, 3, getShortVendorName(r.vendor.name));
           setCell(wsMatrix, curRow, 4, out.tumbangRegular > 0 ? 'REGULAR' : 'ADDITIONAL');
           setCell(wsMatrix, curRow, 5, '-');
           setCell(wsMatrix, curRow, 6, 'Sakit / Kendala');
@@ -381,7 +382,7 @@ export async function GET(request: NextRequest) {
       return {
         'No': index + 1,
         'Tanggal': r.date,
-        'Vendor': r.vendor.name,
+        'Vendor': getShortVendorName(r.vendor.name),
         'Shift': r.workingHours ? `${r.shift.name} (${r.workingHours})` : r.shift.name,
         'Target MP': targetTotal,
         'Masuk Regular': masukReg,
