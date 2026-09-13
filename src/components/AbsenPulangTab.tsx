@@ -40,6 +40,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { submitAbsenPulang } from '@/app/actions';
+import { compressImage } from '@/lib/compressImage';
 
 // Daftar opsi preset area kerja / bagian gudang standar
 const SECTION_PRESETS = ['Bongkar', 'Muat', 'Sortir', 'Repack', 'FIFO'];
@@ -132,12 +133,13 @@ export default function AbsenPulangTab({
     );
   };
 
-  // Unggah file foto checkout Regular
-  const handlePulangRegFileChange = (id: string, file: File | null) => {
+  // Unggah file foto checkout Regular (dengan kompresi otomatis di browser)
+  const handlePulangRegFileChange = async (id: string, file: File | null) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
     setPulangRegPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file, preview: previewUrl } : slot))
+      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
     );
   };
 
@@ -172,21 +174,23 @@ export default function AbsenPulangTab({
     );
   };
 
-  // Unggah file foto checkout Additional
-  const handlePulangAddFileChange = (id: string, file: File | null) => {
+  // Unggah file foto checkout Additional (dengan kompresi otomatis di browser)
+  const handlePulangAddFileChange = async (id: string, file: File | null) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
     setPulangAddPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file, preview: previewUrl } : slot))
+      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
     );
   };
 
-  // Unggah foto surat klinik / P3K untuk pekerja tumbang
-  const handlePhotoTumbangChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Unggah foto surat klinik / P3K untuk pekerja tumbang (dengan kompresi otomatis di browser)
+  const handlePhotoTumbangChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setPhotoTumbangFile(file);
-      setPhotoTumbangPreview(URL.createObjectURL(file));
+      const compressed = await compressImage(file);
+      setPhotoTumbangFile(compressed);
+      setPhotoTumbangPreview(URL.createObjectURL(compressed));
     }
   };
 

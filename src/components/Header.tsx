@@ -133,7 +133,7 @@ export default function Header({
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            4. Laporan & Invoice Excel
+            4. Laporan
           </button>
 
         </div>

@@ -37,6 +37,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { submitAbsenMasuk } from '@/app/actions';
+import { compressImage } from '@/lib/compressImage';
 
 // Daftar opsi preset area kerja / bagian gudang standar
 const SECTION_PRESETS = ['Bongkar', 'Muat', 'Sortir', 'Repack', 'FIFO'];
@@ -121,12 +122,13 @@ export default function AbsenMasukTab({
     );
   };
 
-  // Upload file foto pada slot Regular tertentu
-  const handleRegularFileChange = (id: string, file: File | null) => {
+  // Upload file foto pada slot Regular tertentu (dengan kompresi otomatis di browser)
+  const handleRegularFileChange = async (id: string, file: File | null) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
     setRegularPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file, preview: previewUrl } : slot))
+      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
     );
   };
 
@@ -161,12 +163,13 @@ export default function AbsenMasukTab({
     );
   };
 
-  // Upload file foto pada slot Additional tertentu
-  const handleAdditionalFileChange = (id: string, file: File | null) => {
+  // Upload file foto pada slot Additional tertentu (dengan kompresi otomatis di browser)
+  const handleAdditionalFileChange = async (id: string, file: File | null) => {
     if (!file) return;
-    const previewUrl = URL.createObjectURL(file);
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
     setAdditionalPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file, preview: previewUrl } : slot))
+      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
     );
   };
 
