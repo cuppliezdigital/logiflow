@@ -353,9 +353,7 @@ export default function AbsenMasukTab({
   };
 
   // Helper kalkulasi target & fulfillment pada modal aktif
-  const targetRegModal = selectedPlotingan ? (selectedPlotingan.targetRegular ?? (selectedPlotingan.status === 'REGULAR' ? selectedPlotingan.targetHeadcount : 0)) : 0;
-  const targetAddModal = selectedPlotingan ? (selectedPlotingan.targetAdditional ?? (selectedPlotingan.status === 'ADDITIONAL' ? selectedPlotingan.targetHeadcount : 0)) : 0;
-  const totalTargetModal = targetRegModal + targetAddModal;
+  const totalTargetModal = selectedPlotingan ? selectedPlotingan.targetHeadcount : 0;
   const fulfillmentModal = totalTargetModal > 0 ? Math.round((totalHeadcountInput / totalTargetModal) * 100) : 0;
 
   return (
@@ -473,7 +471,7 @@ export default function AbsenMasukTab({
                       </p>
                     </div>
 
-                    {/* Komparasi Target vs Realisasi Masuk (Regular & Additional) */}
+                    {/* Realisasi Masuk (Regular & Additional) vs Target MP */}
                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
                       {/* Baris Pasukan Regular */}
                       <div className="flex items-center justify-between text-xs">
@@ -483,33 +481,33 @@ export default function AbsenMasukTab({
                         </span>
                         <span className="font-bold text-slate-800">
                           {hasCheckedIn ? (
-                            <strong className="text-emerald-600 font-extrabold">{actualReg}</strong>
-                          ) : '-'}{' '}
-                          / {targetReg} Org
+                            <strong className="text-blue-700 font-extrabold">{actualReg} Org</strong>
+                          ) : (
+                            <span className="text-slate-400 italic">Belum Apel</span>
+                          )}
                         </span>
                       </div>
 
                       {/* Baris Pasukan Additional */}
-                      {targetAdd > 0 && (
-                        <div className="flex items-center justify-between text-xs border-t border-slate-200/60 pt-1.5">
-                          <span className="font-bold text-amber-700 flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                            Pasukan Additional:
-                          </span>
-                          <span className="font-bold text-slate-800">
-                            {hasCheckedIn ? (
-                              <strong className="text-amber-600 font-extrabold">{actualAdd}</strong>
-                            ) : '-'}{' '}
-                            / {targetAdd} Org
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between text-xs border-t border-slate-200/60 pt-1.5">
+                        <span className="font-bold text-amber-700 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          Pasukan Additional:
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {hasCheckedIn ? (
+                            <strong className="text-amber-700 font-extrabold">{actualAdd} Org</strong>
+                          ) : (
+                            <span className="text-slate-400 italic">Belum Apel</span>
+                          )}
+                        </span>
+                      </div>
 
-                      {/* Total Headcount */}
+                      {/* Total Hadir vs Target MP */}
                       <div className="flex items-center justify-between text-xs border-t border-slate-200 pt-1.5 font-extrabold">
-                        <span className="text-slate-600 uppercase">Total Headcount:</span>
-                        <span className={hasCheckedIn ? 'text-emerald-700' : 'text-slate-500'}>
-                          {hasCheckedIn ? `${actualTotal} Org` : '-'} (Target: {p.targetHeadcount} Org)
+                        <span className="text-slate-600 uppercase">Total Hadir / Target:</span>
+                        <span className={hasCheckedIn ? 'text-emerald-700 font-black' : 'text-slate-600 font-bold'}>
+                          {hasCheckedIn ? `${actualTotal} / ${p.targetHeadcount} MP` : `Target: ${p.targetHeadcount} MP`}
                         </span>
                       </div>
                     </div>
@@ -651,14 +649,20 @@ export default function AbsenMasukTab({
                   {/* Input Hadir Pasukan Regular */}
                   <div>
                     <label className="block text-[11px] font-bold text-blue-700 uppercase mb-1">
-                      Hadir Regular (Target: {targetRegModal})
+                      Hadir Regular
                     </label>
                     <input
                       type="number"
                       min="0"
                       required
                       value={actualRegular}
-                      onChange={(e) => setActualRegular(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setActualRegular(val);
+                        if (val > 0 && regularPhotoSlots.length === 0) {
+                          handleAddRegularSlot();
+                        }
+                      }}
                       className="w-full border-2 border-blue-400 bg-white rounded-xl px-3 py-2 text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -666,13 +670,19 @@ export default function AbsenMasukTab({
                   {/* Input Hadir Pasukan Additional */}
                   <div>
                     <label className="block text-[11px] font-bold text-amber-700 uppercase mb-1">
-                      Hadir Additional (Target: {targetAddModal})
+                      Hadir Additional
                     </label>
                     <input
                       type="number"
                       min="0"
                       value={actualAdditional}
-                      onChange={(e) => setActualAdditional(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setActualAdditional(val);
+                        if (val > 0 && additionalPhotoSlots.length === 0) {
+                          handleAddAdditionalSlot();
+                        }
+                      }}
                       className="w-full border-2 border-amber-400 bg-white rounded-xl px-3 py-2 text-lg font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
@@ -856,7 +866,7 @@ export default function AbsenMasukTab({
               {/* ------------------------------------------------------------ */}
               {/* 2. SEKSI FOTO PASUKAN ADDITIONAL PER BAGIAN GUDANG           */}
               {/* ------------------------------------------------------------ */}
-              {(targetAddModal > 0 || actualAdditional > 0) && (
+              {(actualAdditional > 0 || additionalPhotoSlots.length > 0) && (
                 <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-200 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>

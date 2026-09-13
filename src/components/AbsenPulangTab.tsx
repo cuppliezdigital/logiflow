@@ -436,6 +436,7 @@ export default function AbsenPulangTab({
             const outRecord = p.attendanceIn?.attendanceOut;
             const pulangReg = outRecord?.pulangRegular ?? outRecord?.pulangHeadcount ?? 0;
             const pulangAdd = outRecord?.pulangAdditional ?? 0;
+            const pulangTotal = outRecord?.pulangHeadcount ?? (pulangReg + pulangAdd);
 
             const tumbangTotal = outRecord?.tumbangHeadcount ?? 0;
             const selisihCard = outRecord?.selisihCount ?? 0;
@@ -476,9 +477,7 @@ export default function AbsenPulangTab({
                   !hasCheckedIn
                     ? 'border-slate-200 opacity-60 bg-slate-50/50'
                     : hasCheckedOut
-                    ? isMatch
-                      ? 'border-emerald-300'
-                      : 'border-rose-400 ring-1 ring-rose-300'
+                    ? 'border-emerald-300'
                     : 'border-amber-300'
                 }`}
               >
@@ -489,9 +488,7 @@ export default function AbsenPulangTab({
                       !hasCheckedIn
                         ? 'bg-slate-100 text-slate-500'
                         : hasCheckedOut
-                        ? isMatch
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-rose-50 text-rose-700'
+                        ? 'bg-emerald-50 text-emerald-700'
                         : 'bg-amber-50 text-amber-700'
                     }`}
                   >
@@ -502,20 +499,13 @@ export default function AbsenPulangTab({
                           Belum Absen Masuk
                         </>
                       ) : hasCheckedOut ? (
-                        isMatch ? (
-                          <>
-                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                            Closed &bull; Klop (Integritas OK)
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className="w-4 h-4 text-rose-600 animate-bounce" />
-                            Closed &bull; Selisih {selisihCard} Orang!
-                          </>
-                        )
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          Selesai Shift &bull; Total Akhir: {pulangTotal + tumbangTotal} Org
+                        </>
                       ) : (
                         <>
-                          <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                          <Clock className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
                           Sedang Bekerja (Belum Checkout)
                         </>
                       )}
@@ -539,16 +529,10 @@ export default function AbsenPulangTab({
                         <Building2 className="w-4 h-4 text-slate-400" />
                         {p.vendor.name}
                       </h3>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                          Target Reg: {targetReg}
-                        </span>
-                        {targetAdd > 0 && (
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                            Target Add: {targetAdd}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Target Kuota: <strong className="text-slate-800 font-bold">{p.targetHeadcount} MP</strong>
+                        {p.workingHours ? ` &bull; ${p.workingHours}` : ''}
+                      </p>
                     </div>
 
                     {/* Grid Rincian Headcount Terpadu */}
@@ -558,7 +542,7 @@ export default function AbsenPulangTab({
                           <span>Status</span>
                           <span>Masuk</span>
                           <span>Pulang</span>
-                          <span>Selisih</span>
+                          <span>Total Akhir</span>
                         </div>
                         
                         {/* Baris Regular */}
@@ -568,32 +552,32 @@ export default function AbsenPulangTab({
                           <span className={hasCheckedOut ? 'text-blue-600 font-extrabold' : 'text-slate-400'}>
                             {hasCheckedOut ? pulangReg : '-'}
                           </span>
-                          <span className={hasCheckedOut ? (outRecord?.selisihRegular ? 'text-rose-600 font-black' : 'text-emerald-600') : 'text-slate-400'}>
-                            {hasCheckedOut ? outRecord?.selisihRegular ?? 0 : '-'}
+                          <span className={hasCheckedOut ? 'text-blue-700 font-black' : 'text-slate-400'}>
+                            {hasCheckedOut ? (pulangReg + (outRecord?.tumbangRegular ?? 0)) : '-'}
                           </span>
                         </div>
 
                         {/* Baris Additional */}
-                        {targetAdd > 0 && (
+                        {inAdd > 0 && (
                           <div className="grid grid-cols-4 gap-1 text-center text-xs font-semibold">
                             <span className="text-amber-700 font-bold text-left pl-1">Additional</span>
                             <span className="text-slate-900 font-extrabold">{inAdd}</span>
                             <span className={hasCheckedOut ? 'text-amber-600 font-extrabold' : 'text-slate-400'}>
                               {hasCheckedOut ? pulangAdd : '-'}
                             </span>
-                            <span className={hasCheckedOut ? (outRecord?.selisihAdditional ? 'text-rose-600 font-black' : 'text-emerald-600') : 'text-slate-400'}>
-                              {hasCheckedOut ? outRecord?.selisihAdditional ?? 0 : '-'}
+                            <span className={hasCheckedOut ? 'text-amber-700 font-black' : 'text-slate-400'}>
+                              {hasCheckedOut ? (pulangAdd + (outRecord?.tumbangAdditional ?? 0)) : '-'}
                             </span>
                           </div>
                         )}
 
                         {/* Baris Total & Tumbang */}
-                        <div className="border-t border-slate-200 pt-1 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-semibold">
-                            Tumbang (Sakit): <strong className="text-amber-600">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
+                        <div className="border-t border-slate-200 pt-1.5 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-600 font-semibold">
+                            Tumbang / Kendala: <strong className="text-amber-600 font-black">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
                           </span>
-                          <span className="text-slate-500 font-semibold">
-                            Selisih Kabur: <strong className={selisihCard > 0 ? 'text-rose-600 font-black' : 'text-emerald-600 font-black'}>{hasCheckedOut ? selisihCard : 0} Org</strong>
+                          <span className="text-slate-600 font-semibold">
+                            Total Akhir: <strong className="text-slate-900 font-black">{hasCheckedOut ? (pulangTotal + tumbangTotal) : 0} Org</strong>
                           </span>
                         </div>
                       </div>
@@ -801,59 +785,49 @@ export default function AbsenPulangTab({
                 </div>
               </div>
 
-              {/* KOTAK AUDIT INTEGRITAS REALTIME */}
-              <div
-                className={`p-3.5 rounded-xl border transition-all ${
-                  isBalancedModal
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                    : 'bg-rose-50 border-rose-300 text-rose-900'
-                }`}
-              >
+              {/* KOTAK REKAPITULASI KEPULANGAN & TOTAL AKHIR */}
+              <div className="p-3.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-900">
                 <div className="flex items-center justify-between text-xs font-bold mb-1.5">
                   <span className="flex items-center gap-1.5">
-                    {isBalancedModal ? (
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-rose-600" />
-                    )}
-                    Hasil Audit Integritas Kuota:
+                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                    Rekapitulasi Akhir Shift:
                   </span>
-                  <span className="font-extrabold px-2 py-0.5 rounded bg-white/80 shadow-xs">
-                    {isBalancedModal ? 'SEIMBANG / MATCH' : `SELISIH ${selisihTotalModal} KABUR`}
+                  <span className="font-black px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
+                    Total Akhir: {pulangRegular + pulangAdditional + tumbangRegular + tumbangAdditional} Org
                   </span>
                 </div>
 
                 <div className="text-[11px] space-y-1">
-                  <div className="flex justify-between bg-white/70 px-2 py-1 rounded">
-                    <span>Audit Regular: Masuk {inRegModal} = Pulang {pulangRegular} + Tumbang {tumbangRegular}</span>
-                    <strong className={selisihRegModal > 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                      {selisihRegModal > 0 ? `Selisih ${selisihRegModal}` : '✔ Klop'}
+                  <div className="flex justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
+                    <span className="text-slate-600">Regular: Masuk {inRegModal} = Pulang {pulangRegular} + Tumbang {tumbangRegular}</span>
+                    <strong className="text-blue-700 font-extrabold">
+                      Total: {pulangRegular + tumbangRegular} Org
                     </strong>
                   </div>
                   {inAddModal > 0 && (
-                    <div className="flex justify-between bg-white/70 px-2 py-1 rounded">
-                      <span>Audit Additional: Masuk {inAddModal} = Pulang {pulangAdditional} + Tumbang {tumbangAdditional}</span>
-                      <strong className={selisihAddModal > 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                        {selisihAddModal > 0 ? `Selisih ${selisihAddModal}` : '✔ Klop'}
+                    <div className="flex justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
+                      <span className="text-slate-600">Additional: Masuk {inAddModal} = Pulang {pulangAdditional} + Tumbang {tumbangAdditional}</span>
+                      <strong className="text-amber-700 font-extrabold">
+                        Total: {pulangAdditional + tumbangAdditional} Org
                       </strong>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Form Khusus Jika Ada Pekerja Tumbang (Surat Medis Wajib) */}
+              {/* Form Khusus Jika Ada Pekerja Tumbang / Kendala */}
               {totalTumbangModal > 0 && (
                 <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Catatan Medis / Keterangan Sakit (Wajib)
+                      Catatan Kendala / Sakit / Tidak Selesai Shift (Wajib)
                     </label>
                     <textarea
                       rows={2}
                       required
                       value={tumbangNotes}
                       onChange={(e) => setTumbangNotes(e.target.value)}
-                      placeholder="Contoh: 1 orang pusing di dock 2, 1 orang kram otot sortir..."
+                      placeholder="Contoh: 1 orang pusing di dock 2, 1 orang izin darurat..."
                       className="w-full border border-amber-300 bg-white rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>

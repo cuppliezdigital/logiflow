@@ -236,17 +236,18 @@ export default function LaporanTab({
           </div>
         </div>
 
-        {/* KPI 5: Selisih Kabur */}
-        <div className={`rounded-2xl p-4 border shadow-xs ${totals.totalSelisih > 0 ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200'}`}>
+        {/* KPI 5: Total Akhir */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Selisih / Kabur</span>
-            <AlertTriangle className={`w-4 h-4 ${totals.totalSelisih > 0 ? 'text-rose-600 animate-bounce' : 'text-slate-400'}`} />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">Total Akhir</span>
+            <CheckCircle2 className="w-4 h-4 text-blue-500" />
           </div>
-          <p className={`text-2xl font-black ${totals.totalSelisih > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-            {totals.totalSelisih} <span className="text-xs font-normal text-slate-400">Org</span>
+          <p className="text-2xl font-black text-slate-900">
+            {totals.totalPulang + totals.totalTumbang} <span className="text-xs font-normal text-slate-400">Org</span>
           </p>
-          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 font-bold">
-            <span>{totals.totalSelisih > 0 ? `⚠️ R:${totals.regSelisih} | A:${totals.addSelisih}` : '✔ Integritas Bersih'}</span>
+          <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-100 pt-1.5 font-bold flex justify-between">
+            <span>Pulang: {totals.totalPulang}</span>
+            <span>Tumbang: {totals.totalTumbang}</span>
           </div>
         </div>
       </div>
@@ -272,19 +273,20 @@ export default function LaporanTab({
                   <th className="py-3 px-3">Tanggal</th>
                   <th className="py-3 px-3">Vendor</th>
                   <th className="py-3 px-3">Shift</th>
-                  <th className="py-3 px-3 text-center">Target (Reg / Add)</th>
-                  <th className="py-3 px-3 text-center">Masuk (Reg / Add)</th>
+                  <th className="py-3 px-3 text-center">Target MP</th>
+                  <th className="py-3 px-3 text-center">Masuk Reg</th>
+                  <th className="py-3 px-3 text-center">Masuk Add</th>
+                  <th className="py-3 px-3 text-center">Total Masuk</th>
                   <th className="py-3 px-3 text-center">Fulfill (%)</th>
-                  <th className="py-3 px-3 text-center">Pulang (Reg / Add)</th>
+                  <th className="py-3 px-3 text-center">Pulang Reg</th>
+                  <th className="py-3 px-3 text-center">Pulang Add</th>
+                  <th className="py-3 px-3 text-center">Total Pulang</th>
                   <th className="py-3 px-3 text-center">Tumbang</th>
-                  <th className="py-3 px-3 text-center">Selisih</th>
-                  <th className="py-3 px-3 text-center">Status Audit</th>
+                  <th className="py-3 px-3 text-center">Total Akhir</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {records.map((r: any) => {
-                  const targetReg = r.targetRegular ?? (r.status === 'REGULAR' ? r.targetHeadcount : 0);
-                  const targetAdd = r.targetAdditional ?? (r.status === 'ADDITIONAL' ? r.targetHeadcount : 0);
                   const targetTotal = r.targetHeadcount;
 
                   const masukTotal = r.attendanceIn?.actualHeadcount || 0;
@@ -297,20 +299,20 @@ export default function LaporanTab({
                   const pulangAdd = outRecord?.pulangAdditional ?? 0;
 
                   const tumbangTotal = outRecord?.tumbangHeadcount || 0;
-                  const selisih = outRecord?.selisihCount || 0;
                   const fulfillRate = targetTotal > 0 ? Math.round((masukTotal / targetTotal) * 100) : 0;
                   const isClosed = !!outRecord;
+                  const totalAkhir = pulangTotal + tumbangTotal;
 
                   return (
                     <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Tanggal */}
-                      <td className="py-3 px-3 font-semibold text-slate-900">{r.date}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">{r.date}</td>
                       
                       {/* Nama Vendor */}
-                      <td className="py-3 px-3 font-extrabold text-slate-800">{r.vendor.name}</td>
+                      <td className="py-3 px-3 font-extrabold text-slate-800 whitespace-nowrap">{r.vendor.name}</td>
                       
                       {/* Shift & Jam Kerja */}
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         <div className="flex items-center gap-1 font-semibold text-slate-700">
                           {r.shift.name.toLowerCase().includes('pagi') ? (
                             <Sun className="w-3 h-3 text-amber-500" />
@@ -324,72 +326,68 @@ export default function LaporanTab({
                         )}
                       </td>
 
-                      {/* Target (Reg / Add / Total) */}
-                      <td className="py-3 px-3 text-center">
-                        <span className="font-extrabold text-slate-900 block">{targetTotal} Org</span>
-                        <span className="text-[10px] text-slate-400">R:{targetReg} &bull; A:{targetAdd}</span>
+                      {/* Target MP */}
+                      <td className="py-3 px-3 text-center font-extrabold text-slate-900">
+                        {targetTotal}
                       </td>
 
-                      {/* Masuk (Reg / Add / Total) */}
-                      <td className="py-3 px-3 text-center font-bold text-emerald-600">
-                        {r.attendanceIn ? (
-                          <>
-                            <span className="block">{masukTotal} Org</span>
-                            <span className="text-[10px] text-slate-500 font-normal">R:{masukReg} &bull; A:{masukAdd}</span>
-                          </>
-                        ) : '-'}
+                      {/* Masuk Regular */}
+                      <td className="py-3 px-3 text-center font-bold text-blue-700">
+                        {r.attendanceIn ? masukReg : '-'}
+                      </td>
+
+                      {/* Masuk Additional */}
+                      <td className="py-3 px-3 text-center font-bold text-amber-700">
+                        {r.attendanceIn ? masukAdd : '-'}
+                      </td>
+
+                      {/* Total Masuk */}
+                      <td className="py-3 px-3 text-center font-black text-emerald-600">
+                        {r.attendanceIn ? masukTotal : '-'}
                       </td>
 
                       {/* Fulfillment Rate */}
                       <td className="py-3 px-3 text-center font-bold">
-                        {r.attendanceIn ? `${fulfillRate}%` : '-'}
-                      </td>
-
-                      {/* Pulang (Reg / Add / Total) */}
-                      <td className="py-3 px-3 text-center font-bold text-blue-600">
-                        {isClosed ? (
-                          <>
-                            <span className="block">{pulangTotal} Org</span>
-                            <span className="text-[10px] text-slate-500 font-normal">R:{pulangReg} &bull; A:{pulangAdd}</span>
-                          </>
-                        ) : '-'}
-                      </td>
-
-                      {/* Tumbang */}
-                      <td className="py-3 px-3 text-center font-bold text-amber-600">
-                        {isClosed ? `${tumbangTotal} Org` : '-'}
-                      </td>
-
-                      {/* Selisih */}
-                      <td className="py-3 px-3 text-center font-bold">
-                        {isClosed ? (
-                          <span className={selisih > 0 ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black' : 'text-emerald-600'}>
-                            {selisih}
+                        {r.attendanceIn ? (
+                          <span className={fulfillRate >= 100 ? 'text-emerald-700 font-extrabold' : 'text-slate-700'}>
+                            {fulfillRate}%
                           </span>
                         ) : '-'}
                       </td>
 
-                      {/* Status Audit */}
+                      {/* Pulang Regular */}
+                      <td className="py-3 px-3 text-center font-bold text-blue-700">
+                        {isClosed ? pulangReg : '-'}
+                      </td>
+
+                      {/* Pulang Additional */}
+                      <td className="py-3 px-3 text-center font-bold text-amber-700">
+                        {isClosed ? pulangAdd : '-'}
+                      </td>
+
+                      {/* Total Pulang */}
+                      <td className="py-3 px-3 text-center font-black text-blue-600">
+                        {isClosed ? pulangTotal : '-'}
+                      </td>
+
+                      {/* Tumbang / Kendala */}
+                      <td className="py-3 px-3 text-center font-bold text-amber-600">
+                        {isClosed ? tumbangTotal : '-'}
+                      </td>
+
+                      {/* Total Akhir */}
                       <td className="py-3 px-3 text-center">
                         {isClosed ? (
-                          outRecord.isBalanced ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                              <CheckCircle2 className="w-3 h-3" />
-                              CLOSED (OK)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded">
-                              <AlertTriangle className="w-3 h-3" />
-                              SELISIH
-                            </span>
-                          )
+                          <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">
+                            {totalAkhir}
+                          </span>
                         ) : r.attendanceIn ? (
-                          <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                            IN PROGRESS
+                          <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
+                            Dalam Shift
                           </span>
                         ) : (
-                          <span className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                            WAITING
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            -
                           </span>
                         )}
                       </td>

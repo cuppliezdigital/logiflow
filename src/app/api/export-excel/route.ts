@@ -42,8 +42,6 @@ export async function GET(request: NextRequest) {
     });
 
     const rows = records.map((r, index) => {
-      const targetReg = r.targetRegular ?? (r.status === 'REGULAR' ? r.targetHeadcount : 0);
-      const targetAdd = r.targetAdditional ?? (r.status === 'ADDITIONAL' ? r.targetHeadcount : 0);
       const targetTotal = r.targetHeadcount;
 
       const masukTotal = r.attendanceIn ? r.attendanceIn.actualHeadcount : 0;
@@ -56,12 +54,7 @@ export async function GET(request: NextRequest) {
       const pulangAdd = out ? (out.pulangAdditional ?? 0) : 0;
 
       const tumbangTotal = out ? out.tumbangHeadcount : 0;
-      const tumbangReg = out ? (out.tumbangRegular ?? out.tumbangHeadcount) : 0;
-      const tumbangAdd = out ? (out.tumbangAdditional ?? 0) : 0;
-
-      const selisihTotal = out ? out.selisihCount : 0;
-      const selisihReg = out ? (out.selisihRegular ?? 0) : 0;
-      const selisihAdd = out ? (out.selisihAdditional ?? 0) : 0;
+      const totalAkhir = out ? (pulangTotal + tumbangTotal) : 0;
 
       const fulfillment = targetTotal > 0 ? Math.round((masukTotal / targetTotal) * 100) : 0;
 
@@ -71,10 +64,8 @@ export async function GET(request: NextRequest) {
         'Vendor': r.vendor.name,
         'Shift': r.workingHours ? `${r.shift.name} (${r.workingHours})` : r.shift.name,
         
-        // Target Kuota
-        'Target Regular': targetReg,
-        'Target Additional': targetAdd,
-        'Total Target': targetTotal,
+        // Target Kuota H-1
+        'Target MP': targetTotal,
         
         // Realisasi Hadir Masuk
         'Masuk Regular': masukReg,
@@ -87,17 +78,13 @@ export async function GET(request: NextRequest) {
         'Pulang Additional': pulangAdd,
         'Total Pulang': pulangTotal,
         
-        // Tumbang / Sakit
-        'Tumbang Regular': tumbangReg,
-        'Tumbang Additional': tumbangAdd,
-        'Total Tumbang': tumbangTotal,
-        'Keterangan Sakit': out?.tumbangNotes || '-',
+        // Tumbang / Kendala
+        'Tumbang / Kendala': tumbangTotal,
+        'Keterangan Kendala': out?.tumbangNotes || '-',
         
-        // Audit Integritas Selisih
-        'Selisih Regular': selisihReg,
-        'Selisih Additional': selisihAdd,
-        'Total Selisih (Kabur)': selisihTotal,
-        'Status Integritas': out ? (out.isBalanced ? 'SEIMBANG (OK)' : 'SELISIH / ANOMALI') : 'BELUM CLOSING',
+        // Total Akhir
+        'Total Akhir': totalAkhir,
+        'Status Shift': out ? 'Selesai Shift' : (r.attendanceIn ? 'Dalam Shift' : 'Belum Mulai'),
         'Catatan': r.notes || '-',
       };
     });
@@ -112,24 +99,18 @@ export async function GET(request: NextRequest) {
       { wch: 12 }, // Tanggal
       { wch: 28 }, // Vendor
       { wch: 20 }, // Shift & Jam
-      { wch: 14 }, // Target Reg
-      { wch: 16 }, // Target Add
-      { wch: 14 }, // Total Target
-      { wch: 14 }, // Masuk Reg
-      { wch: 16 }, // Masuk Add
+      { wch: 12 }, // Target MP
+      { wch: 15 }, // Masuk Regular
+      { wch: 16 }, // Masuk Additional
       { wch: 14 }, // Total Masuk
-      { wch: 15 }, // Fulfillment
-      { wch: 14 }, // Pulang Reg
-      { wch: 16 }, // Pulang Add
+      { wch: 15 }, // Fulfillment (%)
+      { wch: 15 }, // Pulang Regular
+      { wch: 16 }, // Pulang Additional
       { wch: 14 }, // Total Pulang
-      { wch: 16 }, // Tumbang Reg
-      { wch: 18 }, // Tumbang Add
-      { wch: 15 }, // Total Tumbang
-      { wch: 30 }, // Keterangan Sakit
-      { wch: 15 }, // Selisih Reg
-      { wch: 17 }, // Selisih Add
-      { wch: 20 }, // Total Selisih
-      { wch: 20 }, // Status Integritas
+      { wch: 18 }, // Tumbang / Kendala
+      { wch: 32 }, // Keterangan Kendala
+      { wch: 14 }, // Total Akhir
+      { wch: 16 }, // Status Shift
       { wch: 25 }, // Catatan
     ];
     worksheet['!cols'] = colWidths;

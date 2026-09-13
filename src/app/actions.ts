@@ -145,15 +145,18 @@ export async function createPlotingan(formData: FormData) {
   const vendorId = formData.get('vendorId') as string;
   const shiftId = formData.get('shiftId') as string;
   
+  const rawTargetHeadcount = parseInt(formData.get('targetHeadcount') as string, 10);
   const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
   const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
-  const targetHeadcount = targetRegular + targetAdditional;
+  const targetHeadcount = !isNaN(rawTargetHeadcount) && rawTargetHeadcount > 0 
+    ? rawTargetHeadcount 
+    : (targetRegular + targetAdditional);
 
   const workingHours = (formData.get('workingHours') as string)?.trim() || null;
   const notes = (formData.get('notes') as string) || null;
 
   if (!date || !vendorId || !shiftId || targetHeadcount <= 0) {
-    return { success: false, error: 'Target kuota minimal 1 orang (baik Regular maupun Additional).' };
+    return { success: false, error: 'Target kebutuhan manpower minimal 1 orang.' };
   }
 
   const existing = await prisma.plotingan.findFirst({
@@ -190,14 +193,18 @@ export async function createPlotingan(formData: FormData) {
 }
 
 export async function updatePlotingan(id: string, formData: FormData) {
+  const rawTargetHeadcount = parseInt(formData.get('targetHeadcount') as string, 10);
   const targetRegular = parseInt(formData.get('targetRegular') as string, 10) || 0;
   const targetAdditional = parseInt(formData.get('targetAdditional') as string, 10) || 0;
-  const targetHeadcount = targetRegular + targetAdditional;
+  const targetHeadcount = !isNaN(rawTargetHeadcount) && rawTargetHeadcount > 0 
+    ? rawTargetHeadcount 
+    : (targetRegular + targetAdditional);
+
   const workingHours = (formData.get('workingHours') as string)?.trim() || null;
   const notes = (formData.get('notes') as string) || null;
 
   if (targetHeadcount <= 0) {
-    return { success: false, error: 'Total target headcount harus lebih dari 0.' };
+    return { success: false, error: 'Total target kebutuhan manpower harus lebih dari 0.' };
   }
 
   await prisma.plotingan.update({

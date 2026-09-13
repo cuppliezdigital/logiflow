@@ -22,7 +22,9 @@ import {
   Sun,
   Moon,
   Settings,
-  Layers
+  Layers,
+  TrendingUp,
+  CheckCircle2
 } from 'lucide-react';
 import { createPlotingan, updatePlotingan, deletePlotingan } from '@/app/actions';
 import VendorModal from '@/components/VendorModal';
@@ -62,9 +64,8 @@ export default function PlotinganTab({
   const [vendorId, setVendorId] = useState(vendors[0]?.id || '');
   const [shiftId, setShiftId] = useState(shifts[0]?.id || '');
   
-  // Dua kuota sekaligus: Regular dan Additional
-  const [targetRegular, setTargetRegular] = useState<number>(20);
-  const [targetAdditional, setTargetAdditional] = useState<number>(0);
+  // Target total kebutuhan Manpower (MP) per vendor
+  const [targetHeadcount, setTargetHeadcount] = useState<number>(20);
 
   const [workingHours, setWorkingHours] = useState(''); // Jam kerja bebas/opsional
   const [notes, setNotes] = useState('');
@@ -73,8 +74,9 @@ export default function PlotinganTab({
   // KALKULASI RINGKASAN DATA
   // --------------------------------------------------------------------------
   const totalTarget = plotingans.reduce((sum, p) => sum + p.targetHeadcount, 0);
-  const totalReg = plotingans.reduce((sum, p) => sum + (p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0)), 0);
-  const totalAdd = plotingans.reduce((sum, p) => sum + (p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0)), 0);
+  const uniqueVendorsCount = new Set(plotingans.map((p) => p.vendorId)).size;
+  const totalMasuk = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualHeadcount || 0), 0);
+  const overallFulfillment = totalTarget > 0 ? Math.round((totalMasuk / totalTarget) * 100) : 0;
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
@@ -85,8 +87,7 @@ export default function PlotinganTab({
     setEditingItem(null);
     setVendorId(vendors[0]?.id || '');
     setShiftId(shifts[0]?.id || '');
-    setTargetRegular(20);
-    setTargetAdditional(0);
+    setTargetHeadcount(20);
     setWorkingHours('');
     setNotes('');
     setIsModalOpen(true);
@@ -97,8 +98,7 @@ export default function PlotinganTab({
     setEditingItem(item);
     setVendorId(item.vendorId);
     setShiftId(item.shiftId);
-    setTargetRegular(item.targetRegular ?? item.targetHeadcount);
-    setTargetAdditional(item.targetAdditional ?? 0);
+    setTargetHeadcount(item.targetHeadcount);
     setWorkingHours(item.workingHours || '');
     setNotes(item.notes || '');
     setIsModalOpen(true);
@@ -121,8 +121,7 @@ export default function PlotinganTab({
       formData.append('date', selectedDate);
       formData.append('vendorId', vendorId);
       formData.append('shiftId', shiftId);
-      formData.append('targetRegular', targetRegular.toString());
-      formData.append('targetAdditional', targetAdditional.toString());
+      formData.append('targetHeadcount', targetHeadcount.toString());
       formData.append('workingHours', workingHours);
       formData.append('notes', notes);
 
@@ -145,19 +144,17 @@ export default function PlotinganTab({
     }
   };
 
-  const totalModalTarget = targetRegular + targetAdditional;
-
   return (
     <div className="space-y-6">
       
       {/* 1. KARTU STATISTIK RINGKASAN DI BAGIAN ATAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Total Target Kebutuhan */}
+        {/* Total Target Kebutuhan (MP) */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Target Kebutuhan</p>
             <p className="text-2xl font-black text-slate-900 mt-1">
-              {totalTarget} <span className="text-sm font-semibold text-slate-500">Orang</span>
+              {totalTarget} <span className="text-sm font-semibold text-slate-500">MP</span>
             </p>
           </div>
           <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center font-bold">
@@ -165,29 +162,34 @@ export default function PlotinganTab({
           </div>
         </div>
 
-        {/* Target Kuota Reguler */}
+        {/* Total Vendor Terjadwal */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Regular (Reg)</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vendor Terjadwal</p>
             <p className="text-2xl font-black text-blue-600 mt-1">
-              {totalReg} <span className="text-sm font-semibold text-slate-500">Orang</span>
+              {uniqueVendorsCount} <span className="text-sm font-semibold text-slate-500">Vendor</span>
             </p>
           </div>
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
-            REG
+            <Building2 className="w-6 h-6" />
           </div>
         </div>
 
-        {/* Target Kuota Additional */}
+        {/* Total Realisasi Hadir Apel */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Additional (Add)</p>
-            <p className="text-2xl font-black text-amber-600 mt-1">
-              {totalAdd} <span className="text-sm font-semibold text-slate-500">Orang</span>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Realisasi Hadir Apel</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">
+              {totalMasuk} <span className="text-sm font-semibold text-slate-500">Orang</span>
+              {totalTarget > 0 && (
+                <span className="text-xs font-bold ml-2 text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  {overallFulfillment}%
+                </span>
+              )}
             </p>
           </div>
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-bold">
-            ADD
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
+            <TrendingUp className="w-6 h-6" />
           </div>
         </div>
       </div>
@@ -196,7 +198,7 @@ export default function PlotinganTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Daftar Plotingan ({selectedDate})</h2>
-          <p className="text-xs text-slate-500">1 baris per vendor mencakup kuota Regular dan Additional sekaligus.</p>
+          <p className="text-xs text-slate-500">Kebutuhan total Manpower (MP) per vendor. Pembagian Reg & Add ditentukan saat apel masuk di hari H.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -239,7 +241,7 @@ export default function PlotinganTab({
                 <tr>
                   <th className="py-3.5 px-4">Nama Vendor</th>
                   <th className="py-3.5 px-4">Shift & Jam Kerja</th>
-                  <th className="py-3.5 px-4 text-center">Rincian Kuota Target</th>
+                  <th className="py-3.5 px-4 text-center">Target Manpower (MP)</th>
                   <th className="py-3.5 px-4 text-center">Realisasi Hadir Fisik</th>
                   <th className="py-3.5 px-4">Catatan</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
@@ -252,9 +254,6 @@ export default function PlotinganTab({
                   const masukAdd = p.attendanceIn?.actualAdditional ?? 0;
                   const fulfillment = masuk !== undefined ? Math.round((masuk / p.targetHeadcount) * 100) : null;
                   const isPagi = p.shift.name.toLowerCase().includes('pagi');
-
-                  const regCount = p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0);
-                  const addCount = p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0);
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -289,21 +288,11 @@ export default function PlotinganTab({
                         )}
                       </td>
 
-                      {/* Rincian Kuota Target: Regular vs Additional vs Total */}
+                      {/* Kuota Target Manpower (MP) */}
                       <td className="py-4 px-4 text-center">
-                        <div className="inline-flex flex-col items-center">
-                          <span className="font-black text-base text-slate-900">
-                            {p.targetHeadcount} <span className="text-xs font-normal text-slate-500">Orang Total</span>
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                              Reg: {regCount}
-                            </span>
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                              Add: {addCount}
-                            </span>
-                          </div>
-                        </div>
+                        <span className="font-black text-base text-slate-900">
+                          {p.targetHeadcount} <span className="text-xs font-semibold text-slate-500">MP</span>
+                        </span>
                       </td>
 
                       {/* Realisasi Kehadiran Fisik (Absen Masuk) */}
@@ -467,50 +456,24 @@ export default function PlotinganTab({
                 </div>
               </div>
 
-              {/* DUA INPUT KUOTA SEKALIGUS: REGULAR & ADDITIONAL */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-blue-600" />
-                    Target Kebutuhan Orang
-                  </span>
-                  <span className="text-xs font-black text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
-                    Total: {totalModalTarget} Org
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Target Regular */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-blue-700 uppercase mb-1">
-                      1. Target Regular
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={targetRegular}
-                      onChange={(e) => setTargetRegular(parseInt(e.target.value) || 0)}
-                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-3 py-2 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Kebutuhan rutin</span>
-                  </div>
-
-                  {/* Target Additional */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-amber-700 uppercase mb-1">
-                      2. Target Additional
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={targetAdditional}
-                      onChange={(e) => setTargetAdditional(parseInt(e.target.value) || 0)}
-                      className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-2 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Lembur / Peak</span>
-                  </div>
-                </div>
+              {/* TARGET KEBUTUHAN MANPOWER (MP) */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  Target Kebutuhan Manpower (MP)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={targetHeadcount}
+                  onChange={(e) => setTargetHeadcount(parseInt(e.target.value) || 0)}
+                  placeholder="Contoh: 20"
+                  className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 text-xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Total kuota orang yang diminta ke vendor. Pembagian Regular & Additional akan ditentukan saat apel masuk di hari H.
+                </p>
               </div>
 
               {/* Catatan Opsional */}
