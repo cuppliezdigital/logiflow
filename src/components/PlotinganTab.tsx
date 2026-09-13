@@ -175,10 +175,10 @@ export default function PlotinganTab({
           </div>
         </div>
 
-        {/* Total Realisasi Hadir Apel */}
+        {/* Total Realisasi Hadir (Hapus kata Apel) */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Realisasi Hadir Apel</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Realisasi Hadir</p>
             <p className="text-2xl font-black text-emerald-600 mt-1">
               {totalMasuk} <span className="text-sm font-semibold text-slate-500">Orang</span>
               {totalTarget > 0 && (
@@ -198,7 +198,7 @@ export default function PlotinganTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Daftar Plotingan ({selectedDate})</h2>
-          <p className="text-xs text-slate-500">Kebutuhan total Manpower (MP) per vendor. Pembagian Reg & Add ditentukan saat apel masuk di hari H.</p>
+          <p className="text-xs text-slate-500">Kebutuhan total Manpower (MP) per vendor. Pembagian Reg & Add ditentukan saat absen masuk di hari H.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -242,7 +242,8 @@ export default function PlotinganTab({
                   <th className="py-3.5 px-4">Nama Vendor</th>
                   <th className="py-3.5 px-4">Shift & Jam Kerja</th>
                   <th className="py-3.5 px-4 text-center">Target Manpower (MP)</th>
-                  <th className="py-3.5 px-4 text-center">Realisasi Hadir Fisik</th>
+                  {/* Hapus kata Fisik, cukup Realisasi Hadir */}
+                  <th className="py-3.5 px-4 text-center">Realisasi Hadir</th>
                   <th className="py-3.5 px-4">Catatan</th>
                   <th className="py-3.5 px-4 text-right">Aksi</th>
                 </tr>
@@ -268,7 +269,7 @@ export default function PlotinganTab({
                         )}
                       </td>
 
-                      {/* Shift Kerja (Pagi / Malam) & Jam Kerja Fleksibel */}
+                      {/* Shift Kerja & Jam Kerja (Teks Jam Fleksibel dibuat tebal & gelap kontras tinggi) */}
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800">
                           {isPagi ? (
@@ -279,12 +280,15 @@ export default function PlotinganTab({
                           {p.shift.name}
                         </div>
                         {p.workingHours ? (
-                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-400" />
+                          <p className="text-xs font-bold text-slate-800 mt-0.5 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-600" />
                             {p.workingHours}
                           </p>
                         ) : (
-                          <p className="text-[11px] text-slate-400 mt-0.5 italic">Jam Fleksibel</p>
+                          <p className="text-xs font-bold text-slate-700 mt-0.5 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            Jam Fleksibel
+                          </p>
                         )}
                       </td>
 
@@ -295,17 +299,18 @@ export default function PlotinganTab({
                         </span>
                       </td>
 
-                      {/* Realisasi Kehadiran Fisik (Absen Masuk) */}
+                      {/* Realisasi Kehadiran (Teks Reg & Add dibuat tebal, kontras, dan berwarna jelas) */}
                       <td className="py-4 px-4 text-center">
                         {masuk !== undefined ? (
                           <div className="inline-flex flex-col items-center">
                             <span className="font-extrabold text-emerald-600 text-sm">
                               {masuk} Org ({fulfillment}%)
                             </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500">
-                              <span>Reg: {masukReg}</span>
-                              <span>&bull;</span>
-                              <span>Add: {masukAdd}</span>
+                            {/* Rincian Reg & Add Tebal & Jelas */}
+                            <div className="flex items-center gap-1.5 mt-0.5 text-xs font-bold">
+                              <span className="text-blue-700">Reg: {masukReg}</span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="text-amber-700">Add: {masukAdd}</span>
                             </div>
                           </div>
                         ) : (

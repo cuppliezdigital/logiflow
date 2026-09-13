@@ -52,12 +52,29 @@ export async function GET(request: NextRequest) {
       const pulangTotal = out ? out.pulangHeadcount : 0;
       const pulangReg = out ? (out.pulangRegular ?? out.pulangHeadcount) : 0;
       const pulangAdd = out ? (out.pulangAdditional ?? 0) : 0;
-
+      // Ambil total pekerja tumbang dari record attendanceOut
       const tumbangTotal = out ? out.tumbangHeadcount : 0;
-      const totalAkhir = out ? (pulangTotal + tumbangTotal) : 0;
+
+      // Parsing catatan kendala tumbang (mendukung multi-kejadian JSON atau teks biasa)
+      let keteranganKendala = '-';
+      if (out?.tumbangNotes) {
+        try {
+          const parsed = JSON.parse(out.tumbangNotes);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            keteranganKendala = parsed.map((p: any, i: number) => 
+              `#${i + 1} [${p.category || 'REG'}] ${p.time || '-'} (${p.type || 'Kendala'}): ${p.notes || '-'}`
+            ).join(' | ');
+          } else {
+            keteranganKendala = out.tumbangNotes;
+          }
+        } catch {
+          keteranganKendala = out.tumbangNotes;
+        }
+      }
 
       const fulfillment = targetTotal > 0 ? Math.round((masukTotal / targetTotal) * 100) : 0;
 
+      // Object data baris Excel: Total Pulang diletakkan setelah Tumbang, dan Total Akhir dihapus sesuai permintaan
       return {
         'No': index + 1,
         'Tanggal': r.date,
@@ -73,17 +90,14 @@ export async function GET(request: NextRequest) {
         'Total Masuk': masukTotal,
         'Fulfillment (%)': `${fulfillment}%`,
         
-        // Kepulangan Utuh
+        // Kepulangan & Kendala (Urutan: Pulang Reg, Pulang Add, Tumbang, Total Pulang)
         'Pulang Regular': pulangReg,
         'Pulang Additional': pulangAdd,
+        'Tumbang / Kendala': tumbangTotal,
         'Total Pulang': pulangTotal,
         
-        // Tumbang / Kendala
-        'Tumbang / Kendala': tumbangTotal,
-        'Keterangan Kendala': out?.tumbangNotes || '-',
-        
-        // Total Akhir
-        'Total Akhir': totalAkhir,
+        // Keterangan & Catatan
+        'Keterangan Kendala': keteranganKendala,
         'Status Shift': out ? 'Selesai Shift' : (r.attendanceIn ? 'Dalam Shift' : 'Belum Mulai'),
         'Catatan': r.notes || '-',
       };
@@ -93,7 +107,7 @@ export async function GET(request: NextRequest) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap Manpower Terpadu');
 
-    // Atur lebar kolom Excel
+    // Atur lebar kolom Excel yang telah disesuaikan urutannya
     const colWidths = [
       { wch: 5 },  // No
       { wch: 12 }, // Tanggal
@@ -106,10 +120,9 @@ export async function GET(request: NextRequest) {
       { wch: 15 }, // Fulfillment (%)
       { wch: 15 }, // Pulang Regular
       { wch: 16 }, // Pulang Additional
+      { wch: 18 }, // Tumbang / Kendala (sebelum Total Pulang)
       { wch: 14 }, // Total Pulang
-      { wch: 18 }, // Tumbang / Kendala
-      { wch: 32 }, // Keterangan Kendala
-      { wch: 14 }, // Total Akhir
+      { wch: 38 }, // Keterangan Kendala
       { wch: 16 }, // Status Shift
       { wch: 25 }, // Catatan
     ];

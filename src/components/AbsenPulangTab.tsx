@@ -54,6 +54,19 @@ interface SectionPhotoSlot {
   existingUrl?: string | null;// URL foto lama jika mode edit
 }
 
+// Struktur data untuk multi-kejadian pekerja tumbang / izin di jam kerja
+// Mendukung pencatatan lebih dari 1 orang dengan jam keluar berbeda dan foto bukti mandiri
+interface TumbangIncidentSlot {
+  id: string;                         // ID unik lokal
+  category: 'REGULAR' | 'ADDITIONAL'; // Status pasukan
+  time: string;                       // Jam keluar / izin (misal: "10:30")
+  type: string;                       // Jenis kendala ("Sakit / Klinik", "Izin Darurat", dll)
+  notes: string;                      // Catatan detail kendala
+  file: File | null;                  // File foto bukti mandiri baru
+  preview: string | null;             // Pratinjau gambar
+  existingUrl?: string | null;        // URL gambar lama dari server
+}
+
 // Definisi props untuk komponen AbsenPulangTab
 interface AbsenPulangTabProps {
   plotingans: any[];          // Seluruh data plotingan pada tanggal terpilih
@@ -81,13 +94,16 @@ export default function AbsenPulangTab({
   const [tumbangAdditional, setTumbangAdditional] = useState<number>(0);
   const [tumbangNotes, setTumbangNotes] = useState('');
 
+  // State multi-kejadian pekerja tumbang/izin (beda jam & beda foto)
+  const [tumbangIncidents, setTumbangIncidents] = useState<TumbangIncidentSlot[]>([]);
+
   // State dynamic slot foto checkout per bagian untuk Pasukan Regular
   const [pulangRegPhotoSlots, setPulangRegPhotoSlots] = useState<SectionPhotoSlot[]>([]);
 
   // State dynamic slot foto checkout per bagian untuk Pasukan Additional
   const [pulangAddPhotoSlots, setPulangAddPhotoSlots] = useState<SectionPhotoSlot[]>([]);
 
-  // State upload foto bukti surat dokter / klinik P3K
+  // State upload foto bukti surat dokter / klinik P3K (fallback legacy)
   const [photoTumbangPreview, setPhotoTumbangPreview] = useState<string | null>(null);
   const [photoTumbangFile, setPhotoTumbangFile] = useState<File | null>(null);
   const [existingPhotoTumbang, setExistingPhotoTumbang] = useState<string | null>(null);
@@ -195,6 +211,77 @@ export default function AbsenPulangTab({
   };
 
   // --------------------------------------------------------------------------
+  // HELPER PENGELOLAAN MULTI-KEJADIAN ORANG TUMBANG / IZIN DI JAM KERJA
+  // --------------------------------------------------------------------------
+
+  // Helper sinkronisasi jumlah Tumbang & Pulang dari daftar kejadian
+  const syncCountsFromIncidents = (list: TumbangIncidentSlot[], inReg: number, inAdd: number) => {
+    const regCount = list.filter((i) => i.category === 'REGULAR').length;
+    const addCount = list.filter((i) => i.category === 'ADDITIONAL').length;
+    setTumbangRegular(regCount);
+    setTumbangAdditional(addCount);
+    setPulangRegular(Math.max(0, inReg - regCount));
+    setPulangAdditional(Math.max(0, inAdd - addCount));
+  };
+
+  // Tambah kejadian tumbang baru (otomatis set waktu saat ini)
+  const handleAddIncident = (forcedCat?: 'REGULAR' | 'ADDITIONAL') => {
+    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
+    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
+    const defaultCat = forcedCat || (inAdd > 0 && tumbangAdditional < inAdd ? 'ADDITIONAL' : 'REGULAR');
+    const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+    const newInc: TumbangIncidentSlot = {
+      id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      category: defaultCat,
+      time: nowTime,
+      type: 'Sakit / Klinik',
+      notes: '',
+      file: null,
+      preview: null,
+    };
+    const updated = [...tumbangIncidents, newInc];
+    setTumbangIncidents(updated);
+    syncCountsFromIncidents(updated, inReg, inAdd);
+  };
+
+  // Hapus kejadian tumbang tertentu
+  const handleRemoveIncident = (id: string) => {
+    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
+    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
+    const updated = tumbangIncidents.filter((i) => i.id !== id);
+    setTumbangIncidents(updated);
+    syncCountsFromIncidents(updated, inReg, inAdd);
+  };
+
+  // Ubah atribut kejadian tumbang (kategori, jam, jenis kendala, catatan)
+  const handleUpdateIncident = (id: string, field: keyof TumbangIncidentSlot, value: any) => {
+    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
+    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
+    const updated = tumbangIncidents.map((inc) => (inc.id === id ? { ...inc, [field]: value } : inc));
+    setTumbangIncidents(updated);
+    if (field === 'category') {
+      syncCountsFromIncidents(updated, inReg, inAdd);
+    }
+  };
+
+  // Unggah foto bukti untuk kejadian tertentu (dengan kompresi otomatis di browser)
+  const handleIncidentFileChange = async (id: string, file: File | null) => {
+    if (!file) return;
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
+    setTumbangIncidents((prev) =>
+      prev.map((inc) => (inc.id === id ? { ...inc, file: compressed, preview: previewUrl } : inc))
+    );
+  };
+
+  // Hapus foto bukti suatu kejadian
+  const handleRemoveIncidentPhoto = (id: string) => {
+    setTumbangIncidents((prev) =>
+      prev.map((inc) => (inc.id === id ? { ...inc, file: null, preview: null, existingUrl: null } : inc))
+    );
+  };
+
+  // --------------------------------------------------------------------------
   // EVENT HANDLER: MEMBUKA MODAL & INISIALISASI DATA
   // --------------------------------------------------------------------------
   const handleOpenModal = (plot: any) => {
@@ -225,6 +312,40 @@ export default function AbsenPulangTab({
       setExistingPhotoTumbang(null);
     }
     setPhotoTumbangFile(null);
+
+    // Inisialisasi daftar multi-kejadian tumbang dari database
+    let parsedIncidents: TumbangIncidentSlot[] = [];
+    if (existingOut?.tumbangNotes) {
+      try {
+        const arr = JSON.parse(existingOut.tumbangNotes);
+        if (Array.isArray(arr) && arr.length > 0) {
+          parsedIncidents = arr.map((item: any, idx: number) => ({
+            id: `init-inc-${idx}-${Date.now()}`,
+            category: item.category || 'REGULAR',
+            time: item.time || '',
+            type: item.type || 'Sakit / Klinik',
+            notes: item.notes || '',
+            file: null,
+            preview: item.url || null,
+            existingUrl: item.url || null,
+          }));
+        }
+      } catch (e) {}
+    }
+
+    if (parsedIncidents.length === 0 && existingOut && (existingOut.tumbangHeadcount > 0 || existingOut.photoTumbangUrl)) {
+      parsedIncidents = [{
+        id: `init-inc-legacy-${Date.now()}`,
+        category: existingOut.tumbangRegular > 0 ? 'REGULAR' : 'ADDITIONAL',
+        time: '',
+        type: 'Sakit / Kendala',
+        notes: existingOut.tumbangNotes || '',
+        file: null,
+        preview: existingOut.photoTumbangUrl || null,
+        existingUrl: existingOut.photoTumbangUrl || null,
+      }];
+    }
+    setTumbangIncidents(parsedIncidents);
 
     // Inisialisasi slot foto checkout REGULAR
     let parsedRegSlots: SectionPhotoSlot[] = [];
@@ -322,17 +443,22 @@ export default function AbsenPulangTab({
 
   const totalTumbangModal = tumbangRegular + tumbangAdditional;
 
-  // Validasi ketat wajib foto checkout
+  // Validasi ketat wajib foto checkout untuk Pasukan Regular dan Additional
   const validPulangRegPhotos = pulangRegPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
   const validPulangAddPhotos = pulangAddPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
-  const hasValidTumbangPhoto = !!photoTumbangFile || !!existingPhotoTumbang;
+  // Validasi foto bukti tumbang: jika menggunakan multi-kejadian, setiap kejadian wajib melampirkan foto bukti
+  const hasValidTumbangPhoto =
+    totalTumbangModal === 0 ||
+    (tumbangIncidents.length > 0
+      ? tumbangIncidents.every((inc) => !!inc.file || !!inc.existingUrl)
+      : !!photoTumbangFile || !!existingPhotoTumbang);
 
   const isPulangRegPhotoMissing = pulangRegular > 0 && validPulangRegPhotos.length === 0;
   const isPulangAddPhotoMissing = pulangAdditional > 0 && validPulangAddPhotos.length === 0;
   const isTumbangPhotoMissing = totalTumbangModal > 0 && !hasValidTumbangPhoto;
 
-  // Syarat submit checkout aktif
-  const canSubmit = !isPulangRegPhotoMissing && !isPulangAddPhotoMissing && !isTumbangPhotoMissing;
+  // Syarat submit checkout aktif (seimbang & semua foto wajib lengkap)
+  const canSubmit = isBalancedModal && !isPulangRegPhotoMissing && !isPulangAddPhotoMissing && !isTumbangPhotoMissing;
 
   // --------------------------------------------------------------------------
   // SUBMIT FORM KE SERVER ACTION
@@ -342,7 +468,7 @@ export default function AbsenPulangTab({
     if (!selectedPlotingan?.attendanceIn?.id) return;
 
     if (!canSubmit) {
-      alert('Harap lengkapi seluruh foto checkout kepulangan dan bukti klinik sebelum menyimpan!');
+      alert('Harap lengkapi seluruh foto checkout kepulangan dan bukti surat/faskes orang tumbang sebelum menyimpan!');
       return;
     }
 
@@ -380,7 +506,22 @@ export default function AbsenPulangTab({
         }
       });
 
-      // Kirim foto bukti klinik P3K
+      // Kirim multi-kejadian tumbang & foto bukti mandiri per orang
+      formData.append('photoTumbang_count', tumbangIncidents.length.toString());
+      tumbangIncidents.forEach((inc, index) => {
+        formData.append(`photoTumbang_category_${index}`, inc.category);
+        formData.append(`photoTumbang_time_${index}`, inc.time || '');
+        formData.append(`photoTumbang_type_${index}`, inc.type || 'Sakit');
+        formData.append(`photoTumbang_notes_${index}`, inc.notes || '');
+        if (inc.file) {
+          formData.append(`photoTumbang_file_${index}`, inc.file);
+        }
+        if (inc.existingUrl) {
+          formData.append(`photoTumbang_existing_${index}`, inc.existingUrl);
+        }
+      });
+
+      // Fallback foto bukti tunggal jika legacy
       if (photoTumbangFile) {
         formData.append('photoTumbang', photoTumbangFile);
       }
@@ -470,6 +611,24 @@ export default function AbsenPulangTab({
 
             const totalPulangPhotos = cardPulangRegPhotos.length + cardPulangAddPhotos.length;
 
+            // Ekstrak data multi-kejadian orang tumbang / izin di jam kerja
+            let cardTumbangIncidents: Array<{ category: string; time: string; type: string; notes: string; url: string }> = [];
+            if (outRecord?.tumbangNotes) {
+              try {
+                const parsed = JSON.parse(outRecord.tumbangNotes);
+                if (Array.isArray(parsed)) cardTumbangIncidents = parsed;
+              } catch (e) {}
+            }
+            if (cardTumbangIncidents.length === 0 && outRecord?.photoTumbangUrl) {
+              cardTumbangIncidents = [{
+                category: (outRecord.tumbangRegular ?? 0) > 0 ? 'REGULAR' : 'ADDITIONAL',
+                time: '',
+                type: 'Kendala',
+                notes: outRecord.tumbangNotes || '',
+                url: outRecord.photoTumbangUrl,
+              }];
+            }
+
             return (
               <div
                 key={p.id}
@@ -501,7 +660,7 @@ export default function AbsenPulangTab({
                       ) : hasCheckedOut ? (
                         <>
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          Selesai Shift &bull; Total Akhir: {pulangTotal + tumbangTotal} Org
+                          Selesai Shift &bull; {pulangTotal} Pulang{tumbangTotal > 0 ? ` • ${tumbangTotal} Tumbang` : ''}
                         </>
                       ) : (
                         <>
@@ -542,7 +701,7 @@ export default function AbsenPulangTab({
                           <span>Status</span>
                           <span>Masuk</span>
                           <span>Pulang</span>
-                          <span>Total Akhir</span>
+                          <span>Tumbang</span>
                         </div>
                         
                         {/* Baris Regular */}
@@ -552,8 +711,8 @@ export default function AbsenPulangTab({
                           <span className={hasCheckedOut ? 'text-blue-600 font-extrabold' : 'text-slate-400'}>
                             {hasCheckedOut ? pulangReg : '-'}
                           </span>
-                          <span className={hasCheckedOut ? 'text-blue-700 font-black' : 'text-slate-400'}>
-                            {hasCheckedOut ? (pulangReg + (outRecord?.tumbangRegular ?? 0)) : '-'}
+                          <span className={hasCheckedOut ? 'text-amber-700 font-black' : 'text-slate-400'}>
+                            {hasCheckedOut ? (outRecord?.tumbangRegular ?? 0) : '-'}
                           </span>
                         </div>
 
@@ -566,18 +725,18 @@ export default function AbsenPulangTab({
                               {hasCheckedOut ? pulangAdd : '-'}
                             </span>
                             <span className={hasCheckedOut ? 'text-amber-700 font-black' : 'text-slate-400'}>
-                              {hasCheckedOut ? (pulangAdd + (outRecord?.tumbangAdditional ?? 0)) : '-'}
+                              {hasCheckedOut ? (outRecord?.tumbangAdditional ?? 0) : '-'}
                             </span>
                           </div>
                         )}
 
-                        {/* Baris Total & Tumbang */}
+                        {/* Baris Total Ringkasan */}
                         <div className="border-t border-slate-200 pt-1.5 flex items-center justify-between text-[11px]">
                           <span className="text-slate-600 font-semibold">
-                            Tumbang / Kendala: <strong className="text-amber-600 font-black">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
+                            Tumbang: <strong className="text-amber-600 font-black">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
                           </span>
                           <span className="text-slate-600 font-semibold">
-                            Total Akhir: <strong className="text-slate-900 font-black">{hasCheckedOut ? (pulangTotal + tumbangTotal) : 0} Org</strong>
+                            Pulang Utuh: <strong className="text-blue-700 font-black">{hasCheckedOut ? pulangTotal : 0} Org</strong>
                           </span>
                         </div>
                       </div>
@@ -587,28 +746,44 @@ export default function AbsenPulangTab({
                       </div>
                     )}
 
-                    {/* Keterangan Tumbang jika ada */}
+                    {/* Keterangan Multi-Kejadian Tumbang jika ada */}
                     {hasCheckedOut && tumbangTotal > 0 && (
-                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-900 space-y-1">
+                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-900 space-y-1.5">
                         <div className="flex items-center justify-between font-bold text-amber-800">
                           <div className="flex items-center gap-1">
                             <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Keterangan Sakit ({tumbangTotal} Orang):</span>
+                            <span>Keterangan Kendala ({tumbangTotal} Orang):</span>
                           </div>
-                          {outRecord?.photoTumbangUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setLightboxPhoto({ url: outRecord.photoTumbangUrl!, title: `Surat Dokter: ${p.vendor.name}` })}
-                              className="text-[10px] text-amber-700 hover:text-amber-900 underline flex items-center gap-0.5 cursor-pointer font-extrabold"
-                            >
-                              <Camera className="w-3 h-3" />
-                              Lihat Bukti
-                            </button>
-                          )}
                         </div>
-                        <p className="text-[11px] text-amber-700 italic">
-                          "{outRecord?.tumbangNotes || 'Tidak ada catatan sakit rinci'}"
-                        </p>
+                        {cardTumbangIncidents.length > 0 ? (
+                          <div className="space-y-1">
+                            {cardTumbangIncidents.map((inc, iIdx) => (
+                              <div key={iIdx} className="flex items-center justify-between text-[11px] bg-white/90 p-1.5 rounded-lg border border-amber-200/60 shadow-2xs">
+                                <div className="flex items-center gap-1.5 truncate mr-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${inc.category === 'REGULAR' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                                    {inc.category === 'REGULAR' ? 'Reg' : 'Add'}
+                                  </span>
+                                  {inc.time && <span className="font-bold text-slate-700">[{inc.time}]</span>}
+                                  <span className="text-slate-800 font-medium truncate">{inc.notes || inc.type}</span>
+                                </div>
+                                {inc.url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightboxPhoto({ url: inc.url, title: `Bukti Kendala: ${p.vendor.name} (${inc.time || ''})` })}
+                                    className="text-[10px] text-amber-700 hover:text-amber-900 underline font-bold shrink-0 flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <Camera className="w-3 h-3" />
+                                    Foto
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-amber-700 italic">
+                            "{outRecord?.tumbangNotes || 'Tidak ada catatan kendala rinci'}"
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -682,7 +857,7 @@ export default function AbsenPulangTab({
                       }`}
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      {hasCheckedOut ? 'Edit Absen Pulang & Foto Checkout' : 'Input Absen Pulang (Wajib Foto)'}
+                      {hasCheckedOut ? 'Edit Absen Pulang' : 'Input Absen Pulang'}
                     </button>
                   )}
                 </div>
@@ -817,7 +992,7 @@ export default function AbsenPulangTab({
                 </div>
               </div>
 
-              {/* KOTAK REKAPITULASI KEPULANGAN & TOTAL AKHIR */}
+              {/* KOTAK REKAPITULASI KEPULANGAN & INTEGRITAS (Clean tanpa kata Total Akhir) */}
               <div className="p-3.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-900">
                 <div className="flex items-center justify-between text-xs font-bold mb-1.5">
                   <span className="flex items-center gap-1.5">
@@ -825,7 +1000,7 @@ export default function AbsenPulangTab({
                     Rekapitulasi Akhir Shift:
                   </span>
                   <span className="font-black px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                    Total Akhir: {pulangRegular + pulangAdditional + tumbangRegular + tumbangAdditional} Org
+                    Total: {pulangRegular + pulangAdditional + tumbangRegular + tumbangAdditional} Org
                   </span>
                 </div>
 
@@ -847,61 +1022,170 @@ export default function AbsenPulangTab({
                 </div>
               </div>
 
-              {/* Form Khusus Jika Ada Pekerja Tumbang / Kendala */}
-              {totalTumbangModal > 0 && (
-                <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 space-y-3">
+              {/* ------------------------------------------------------------ */}
+              {/* SEKSI MULTI-KEJADIAN ORANG TUMBANG / IZIN DI JAM KERJA        */}
+              {/* Mendukung > 1 orang dengan jam keluar berbeda & foto bukti mandiri */}
+              {/* ------------------------------------------------------------ */}
+              <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Catatan Kendala / Sakit / Tidak Selesai Shift (Wajib)
+                    <label className="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
+                      <HeartPulse className="w-4 h-4 text-amber-600" />
+                      Daftar Kejadian Tumbang / Izin ({tumbangIncidents.length} Orang)
                     </label>
-                    <textarea
-                      rows={2}
-                      required
-                      value={tumbangNotes}
-                      onChange={(e) => setTumbangNotes(e.target.value)}
-                      placeholder="Contoh: 1 orang pusing di dock 2, 1 orang izin darurat..."
-                      className="w-full border border-amber-300 bg-white rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
+                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                      Catat setiap orang yang pulang awal/sakit dengan jam keluar dan foto bukti masing-masing.
+                    </p>
                   </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        Foto Bukti (Wajib)
-                      </label>
-                      <span className="text-[10px] text-rose-600 font-bold">*Wajib dilampirkan</span>
-                    </div>
-
-                    {photoTumbangPreview ? (
-                      <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100">
-                        <img src={photoTumbangPreview} alt="Bukti Sakit" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => { setPhotoTumbangPreview(null); setPhotoTumbangFile(null); setExistingPhotoTumbang(null); }}
-                          className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer shadow-xs"
-                          title="Hapus foto"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[10px] font-bold text-center py-0.5">
-                          Foto Bukti Terlampir
-                        </span>
-                      </div>
-                    ) : (
-                      <label className="flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-3 bg-white hover:bg-amber-50 transition-colors cursor-pointer text-xs font-bold text-amber-700">
-                        <Camera className="w-4 h-4 text-amber-600" />
-                        <span>Unggah Foto Bukti</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoTumbangChange}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddIncident()}
+                    className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Catat Orang Tumbang / Izin
+                  </button>
                 </div>
-              )}
+
+                {tumbangIncidents.length === 0 ? (
+                  <div className="bg-white/80 rounded-xl p-4 text-center border border-dashed border-amber-200">
+                    <p className="text-xs font-bold text-amber-900">Tidak ada pekerja yang tumbang / sakit</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Jika semua pekerja menyelesaikan shift sampai selesai, lewati bagian ini.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleAddIncident()}
+                      className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      + Catat Kejadian Tumbang / Izin
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {tumbangIncidents.map((inc, idx) => (
+                      <div key={inc.id} className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-xs space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                            <span className="w-5 h-5 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center text-[11px]">
+                              {idx + 1}
+                            </span>
+                            Kejadian #{idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIncident(inc.id)}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          {/* Status Pasukan (Reg vs Add) */}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Status Pasukan</label>
+                            <select
+                              value={inc.category}
+                              onChange={(e) => handleUpdateIncident(inc.id, 'category', e.target.value)}
+                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="REGULAR">🔵 Regular</option>
+                              {inAddModal > 0 && <option value="ADDITIONAL">🟠 Additional</option>}
+                            </select>
+                          </div>
+
+                          {/* Jam Keluar / Izin */}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Jam Keluar Gudang</label>
+                            <input
+                              type="time"
+                              required
+                              value={inc.time}
+                              onChange={(e) => handleUpdateIncident(inc.id, 'time', e.target.value)}
+                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+
+                          {/* Jenis Kendala */}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Jenis Kendala</label>
+                            <select
+                              value={inc.type}
+                              onChange={(e) => handleUpdateIncident(inc.id, 'type', e.target.value)}
+                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            >
+                              <option value="Sakit / Klinik">Sakit / Klinik</option>
+                              <option value="Izin Darurat">Izin Darurat</option>
+                              <option value="Cedera Kerja">Cedera Kerja</option>
+                              <option value="Meninggalkan Tugas / Kabur">Meninggalkan Tugas / Kabur</option>
+                              <option value="Lainnya">Lainnya</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Catatan Keterangan Detail */}
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
+                            Catatan Detail / Diagnosa / Alasan (Wajib)
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={inc.notes}
+                            onChange={(e) => handleUpdateIncident(inc.id, 'notes', e.target.value)}
+                            placeholder="Contoh: Sakit lambung kambuh, izin urusan keluarga mendadak..."
+                            className="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        {/* Upload Foto Bukti Khusus Kejadian Ini */}
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[10px] font-bold text-slate-600 uppercase">
+                              Foto Bukti Surat Dokter / Klinik / Pos Security
+                            </label>
+                            <span className="text-[10px] text-rose-600 font-bold">*Wajib Foto</span>
+                          </div>
+
+                          {inc.preview ? (
+                            <div className="relative rounded-lg overflow-hidden border border-slate-200 h-24 bg-slate-100 flex items-center justify-center">
+                              <img src={inc.preview} alt={`Bukti ${inc.category}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveIncidentPhoto(inc.id)}
+                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer shadow-xs"
+                                title="Hapus foto"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[9px] font-bold text-center py-0.5">
+                                Bukti Terlampir ({inc.category} • {inc.time})
+                              </span>
+                            </div>
+                          ) : (
+                            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg p-3 bg-amber-50/40 hover:bg-amber-50/80 cursor-pointer text-xs font-bold text-amber-800 transition-colors">
+                              <Camera className="w-4 h-4 text-amber-600" />
+                              <span>Unggah Foto Bukti ({inc.category} • {inc.time || 'Jam Pulang'})</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleIncidentFileChange(inc.id, file);
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* ------------------------------------------------------------ */}
               {/* 1. SEKSI FOTO CHECKOUT REGULAR PER BAGIAN GUDANG              */}

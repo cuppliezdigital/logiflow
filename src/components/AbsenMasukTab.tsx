@@ -518,7 +518,7 @@ export default function AbsenMasukTab({
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-600">Fulfillment Awal:</span>
                           <span
-                            className={`font-extrabold px-2 py-0.5 rounded-full text-xs ${
+                            className={`font-extrabold px-2.5 py-0.5 rounded-full text-xs ${
                               rate >= 95
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : rate >= 80
@@ -526,7 +526,8 @@ export default function AbsenMasukTab({
                                 : 'bg-rose-100 text-rose-800'
                             }`}
                           >
-                            {rate}% {rate >= 100 ? '⭐ Lengkap' : '⚠️ Kurang'}
+                            {/* Tampilan bersih minimalis tanpa icon bintang */}
+                            {rate}% {rate >= 100 ? 'Lengkap' : 'Kurang'}
                           </span>
                         </div>
 

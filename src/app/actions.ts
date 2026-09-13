@@ -394,15 +394,50 @@ export async function submitAbsenPulang(formData: FormData) {
     }
   }
 
-  // 3. Foto Bukti Tumbang / Surat Sakit
-  const photoTumbangFile = formData.get('photoTumbang') as File | null;
-  const photoTumbangExisting = formData.get('photoTumbang_existing') as string | null;
-  let photoTumbangUrl = photoTumbangExisting;
-  if (photoTumbangFile && photoTumbangFile.size > 0) {
-    photoTumbangUrl = await saveUploadedFile(photoTumbangFile);
+  // 3. Multi-Foto Bukti Tumbang / Kejadian per Jam (Mendukung > 1 Orang di Jam Berbeda)
+  // Setiap kejadian mencatat: Kategori (Reg/Add), Jam Keluar, Jenis Kendala, Catatan, & Foto Bukti Mandiri.
+  const tumbangIncidentCount = parseInt(formData.get('photoTumbang_count') as string, 10) || 0;
+  const tumbangIncidents: Array<{
+    category: string;
+    time: string;
+    type: string;
+    notes: string;
+    url: string;
+  }> = [];
+
+  for (let i = 0; i < tumbangIncidentCount; i++) {
+    const category = (formData.get(`photoTumbang_category_${i}`) as string) || 'REGULAR';
+    const time = (formData.get(`photoTumbang_time_${i}`) as string) || '';
+    const type = (formData.get(`photoTumbang_type_${i}`) as string) || 'Sakit';
+    const notes = (formData.get(`photoTumbang_notes_${i}`) as string) || '';
+    const file = formData.get(`photoTumbang_file_${i}`) as File | null;
+    const existingUrl = formData.get(`photoTumbang_existing_${i}`) as string | null;
+
+    let url = existingUrl || '';
+    if (file && file.size > 0) {
+      // Simpan file ke direktori uploads dan ambil path publiknya
+      const uploadedUrl = await saveUploadedFile(file);
+      if (uploadedUrl) {
+        url = uploadedUrl;
+      }
+    }
+    tumbangIncidents.push({ category, time, type, notes, url });
   }
 
-  // VALIDASI KETAT WAJIB FOTO CHECKOUT:
+  // Fallback foto utama (foto kejadian pertama atau single upload)
+  let photoTumbangUrl = tumbangIncidents.find(inc => inc.url)?.url || (formData.get('photoTumbang_existing') as string | null);
+  const singlePhotoTumbangFile = formData.get('photoTumbang') as File | null;
+  if (singlePhotoTumbangFile && singlePhotoTumbangFile.size > 0) {
+    photoTumbangUrl = await saveUploadedFile(singlePhotoTumbangFile);
+  }
+
+  // Jika ada multi-kejadian, simpan format JSON terstruktur ke tumbangNotes agar data jam & alasan tersimpan utuh
+  let finalTumbangNotes = tumbangNotes;
+  if (tumbangIncidents.length > 0) {
+    finalTumbangNotes = JSON.stringify(tumbangIncidents);
+  }
+
+  // VALIDASI KETAT WAJIB FOTO CHECKOUT & BUKTI TUMBANG:
   if (pulangRegular > 0 && pulangRegularPhotos.length === 0) {
     return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan checkout kepulangan REGULAR!' };
   }
@@ -411,7 +446,7 @@ export async function submitAbsenPulang(formData: FormData) {
     return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan checkout kepulangan ADDITIONAL!' };
   }
 
-  if (tumbangHeadcount > 0 && !photoTumbangUrl) {
+  if (tumbangHeadcount > 0 && !photoTumbangUrl && tumbangIncidents.every(i => !i.url)) {
     return { success: false, error: 'Wajib melampirkan foto bukti surat dokter / klinik P3K untuk pekerja yang tumbang!' };
   }
 
@@ -442,7 +477,7 @@ export async function submitAbsenPulang(formData: FormData) {
       photoPulangAdditionalUrl,
       photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl,
       photoTumbangUrl,
-      tumbangNotes,
+      tumbangNotes: finalTumbangNotes,
       selisihRegular,
       selisihAdditional,
       selisihCount,
@@ -461,7 +496,7 @@ export async function submitAbsenPulang(formData: FormData) {
       photoPulangAdditionalUrl,
       photoPulangUrl: photoPulangRegularUrl || photoPulangAdditionalUrl || undefined,
       photoTumbangUrl,
-      tumbangNotes,
+      tumbangNotes: finalTumbangNotes,
       selisihRegular,
       selisihAdditional,
       selisihCount,
