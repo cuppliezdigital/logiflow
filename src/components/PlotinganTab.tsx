@@ -363,7 +363,7 @@ export default function PlotinganTab({
           </div>
         </div>
 
-        {/* Total Realisasi Hadir (Hapus kata Apel) */}
+        {/* Total Realisasi Hadir Pasukan di Awal Shift */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Realisasi Hadir</p>
@@ -691,8 +691,9 @@ export default function PlotinganTab({
                   placeholder="Contoh: 20"
                   className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 text-xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {/* Catatan: Keterangan pembagian kuota saat proses absen masuk */}
                 <p className="text-[11px] text-slate-500">
-                  Total kuota orang yang diminta ke vendor. Pembagian Regular & Additional akan ditentukan saat apel masuk di hari H.
+                  Total kuota orang yang diminta ke vendor. Pembagian Regular & Additional akan ditentukan saat absen masuk di hari H.
                 </p>
               </div>
 

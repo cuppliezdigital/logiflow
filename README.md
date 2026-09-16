@@ -26,16 +26,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
    - Fitur **Kelola Vendor** langsung dari antarmuka web (Tambah, Edit, Hapus).
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-2. **FASE 2: Absen Masuk & Serah Terima Pasukan (Apel Pagi)**
-   - Pencatatan orang fisik yang hadir di barisan apel awal shift.
-   - Upload / jepret foto barisan apel langsung dari kamera HP atau galeri.
+2. **FASE 2: Absen Masuk & Serah Terima Pasukan (Awal Shift)**
+   - Pencatatan orang fisik yang hadir di serah terima awal shift.
+   - Upload / jepret foto barisan kontingen langsung dari kamera HP atau galeri.
    - Penghitungan otomatis persentase *fulfillment* awal terhadap target.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 3. **FASE 3: Absen Pulang, Tumbang & Audit Integritas**
    - Pencatatan orang yang pulang utuh selesai shift.
    - Pencatatan tenaga kerja yang tumbang (sakit/cedera) + catatan medis & foto bukti penanganan klinik P3K.
-   - Upload foto apel checkout kepulangan.
+   - Upload foto bukti checkout kepulangan.
    - **Audit Integritas Otomatis:** Rumus `Masuk = Pulang Utuh + Tumbang`. Jika kurang, otomatis terdata sebagai pekerja kabur/selisih.
 
 ## Learn More

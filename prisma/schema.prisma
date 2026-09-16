@@ -67,7 +67,7 @@ model Plotingan {
 }
 
 // ----------------------------------------------------------------------------
-// 4. MODEL ATTENDANCE IN (Absen Masuk / Serah Terima Pasukan di Apel Pagi)
+// 4. MODEL ATTENDANCE IN (Absen Masuk / Serah Terima Pasukan di Awal Shift)
 // Mendukung multi-foto per bagian gudang (Bongkar, Muat, Sortir, Repack, FIFO, dll)
 // yang disimpan dalam format JSON array terstruktur.
 // ----------------------------------------------------------------------------
@@ -75,21 +75,21 @@ model AttendanceIn {
   id                    String         @id @default(cuid())
   plotinganId           String         @unique
   plotingan             Plotingan      @relation(fields: [plotinganId], references: [id], onDelete: Cascade)
-  checkInTime           DateTime       @default(now()) // Waktu serah terima apel masuk
+  checkInTime           DateTime       @default(now()) // Waktu serah terima absen masuk
   actualRegular         Int            @default(0)     // Jumlah fisik orang regular yang hadir
   actualAdditional      Int            @default(0)     // Jumlah fisik orang additional yang hadir
   actualHeadcount       Int            // Total orang masuk (actualRegular + actualAdditional)
   
   // Penyimpanan Multi-Foto per Bagian (JSON Array of { section: string, url: string })
-  photosRegularJson     String?        // JSON list foto apel barisan REGULAR per bagian
-  photosAdditionalJson  String?        // JSON list foto apel barisan ADDITIONAL per bagian
+  photosRegularJson     String?        // JSON list foto presensi barisan REGULAR per bagian
+  photosAdditionalJson  String?        // JSON list foto presensi barisan ADDITIONAL per bagian
   
   // Fallback thumbnail tunggal
   photoInRegularUrl     String?        // Link URL foto thumbnail barisan REGULAR
   photoInAdditionalUrl  String?        // Link URL foto thumbnail barisan ADDITIONAL
   photoInUrl            String?        // Fallback kompatibilitas foto umum
   
-  notes                 String?        // Catatan saat serah terima apel
+  notes                 String?        // Catatan saat serah terima presensi masuk
   createdAt             DateTime       @default(now())
   attendanceOut         AttendanceOut? // Relasi: 1 Absen Masuk memiliki 1 data Absen Pulang
 }
@@ -102,7 +102,7 @@ model AttendanceOut {
   id                        String       @id @default(cuid())
   attendanceInId            String       @unique
   attendanceIn              AttendanceIn @relation(fields: [attendanceInId], references: [id], onDelete: Cascade)
-  checkOutTime              DateTime     @default(now()) // Waktu checkout/apel selesai shift
+  checkOutTime              DateTime     @default(now()) // Waktu checkout presensi selesai shift
   
   // Rincian Kepulangan Utuh
   pulangRegular             Int          @default(0)     // Jumlah orang regular yang pulang utuh

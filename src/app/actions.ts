@@ -20,7 +20,7 @@ import path from 'path';
 // HELPER: Menyimpan File Gambar yang Diunggah ke Folder public/uploads
 // ----------------------------------------------------------------------------
 /**
- * Fungsi pembantu untuk memproses file upload (foto apel masuk reg/add, checkout, klinik).
+ * Fungsi pembantu untuk memproses file upload (foto absen masuk reg/add, checkout, klinik).
  * File disimpan di folder `public/uploads/` dengan nama unik agar tidak bentrok.
  * Mengembalikan path URL lokal (misal: /uploads/1712345678-abc.jpg).
  */
@@ -349,7 +349,7 @@ export async function getPlotinganForCopy(sourceDate: string, shiftId: string) {
 // 4. MODUL ABSEN MASUK: Multi-Foto per Bagian Gudang + Validasi Ketat Wajib Foto
 // ----------------------------------------------------------------------------
 /**
- * Menyimpan absensi serah terima apel masuk:
+ * Menyimpan absensi serah terima masuk:
  * - Mendukung kumpulan foto per bagian: [{ section: 'Bongkar', url: '...' }]
  * - Validasi: WAJIB melampirkan minimal 1 foto untuk kuota yang ada orangnya.
  */
@@ -402,11 +402,11 @@ export async function submitAbsenMasuk(formData: FormData) {
     }
   }
 
-  // VALIDASI FOTO APEL MASUK:
+  // VALIDASI FOTO ABSEN MASUK:
   // Mendukung foto full barisan sekaligus atau foto terpisah per kategori
   const hasAnyPhoto = regularPhotos.length > 0 || additionalPhotos.length > 0;
   if (actualHeadcount > 0 && !hasAnyPhoto) {
-    return { success: false, error: 'Wajib melampirkan minimal 1 foto apel kehadiran fisik pasukan vendor!' };
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto bukti fisik kehadiran pasukan vendor!' };
   }
 
   // Jika vendor membawa kedua kategori (Reg & Add) namun mengunggah foto full kontingen secara serentak,

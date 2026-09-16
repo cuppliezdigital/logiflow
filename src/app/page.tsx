@@ -128,7 +128,7 @@ export default function Home() {
               />
             )}
 
-            {/* TAB 2: MODUL ABSEN MASUK (SERAH TERIMA APEL SHIFT) */}
+            {/* TAB 2: MODUL ABSEN MASUK (SERAH TERIMA PASUKAN SHIFT) */}
             {activeTab === 'masuk' && (
               <AbsenMasukTab
                 plotingans={plotingans}

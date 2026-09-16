@@ -97,7 +97,7 @@ export default function Header({
             1. Plotingan
           </button>
 
-          {/* TAB 2: Absen Masuk (Serah Terima Pasukan saat Apel Pagi) */}
+          {/* TAB 2: Absen Masuk (Serah Terima Pasukan Awal Shift) */}
           <button
             onClick={() => setActiveTab('masuk')}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${

@@ -908,7 +908,7 @@ export default function AbsenPulangTab({
             {/* Form Input */}
             <form onSubmit={handleSubmit} className="space-y-5 mt-4">
               
-              {/* Ringkasan Hadir Masuk di Apel Awal */}
+              {/* Ringkasan Hadir Masuk di Awal Shift */}
               <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-600 uppercase">Tercatat Hadir Masuk:</span>
                 <span className="font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">

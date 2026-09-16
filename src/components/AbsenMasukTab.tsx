@@ -4,7 +4,7 @@
 // KOMPONEN TAB 2: ABSEN MASUK & DISTRIBUSI POS UNDER LAPANGAN (3 AKTOR OPERASIONAL)
 // Arsitektur Alur Lapangan Terpadu:
 // 1. Aktor 1 (Manager J&T): Plotingan kuota H-1 (diatur di Tab 1).
-// 2. Aktor 2 (Pihak Vendor): Apel serah terima pasukan di awal shift.
+// 2. Aktor 2 (Pihak Vendor): Serah terima pasukan di awal shift.
 //    Vendor membawa anak-anak naik ke lapangan, mengambil foto full kontingen,
 //    dan mencatat nama/jumlah Reg & Add tanpa wajib repot memisah foto per bagian.
 // 3. Aktor 3 (Karyawan / Under Lapangan J&T): Pembagian operasional riil per divisi:
@@ -16,7 +16,7 @@
 //    Under mengambil foto regu yang dipegangnya & input jumlah Reg/Add.
 // 4. Live Audit Reconciliation Banner:
 //    Membandingkan Total Pasukan Diserahkan Vendor vs Total Diterima Under Lapangan.
-// 5. Lightbox Modal Preview untuk foto apel vendor & foto regu Under.
+// 5. Lightbox Modal Preview untuk foto kontingen vendor & foto regu Under.
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -146,7 +146,7 @@ export const DIVISION_DEFINITIONS = [
   },
 ];
 
-// Struktur data slot foto upload apel vendor
+// Struktur data slot foto upload presensi vendor
 interface SectionPhotoSlot {
   id: string;                 // Identifier unik slot
   section: string;            // Kategori bagian (misal: 'Foto Full Vendor', 'Bongkar')
@@ -172,7 +172,7 @@ export default function AbsenMasukTab({
   // --------------------------------------------------------------------------
   // 1. STATE NAVIGASI SUB-TAB & UNDER LAPANGAN
   // --------------------------------------------------------------------------
-  // Mode Sub-Tab: 'VENDOR' (Apel Serah Terima Vendor) vs 'UNDER' (Distribusi Pos & Under Lapangan)
+  // Mode Sub-Tab: 'VENDOR' (Serah Terima Pasukan Vendor) vs 'UNDER' (Distribusi Pos & Under Lapangan)
   const [activeSubTab, setActiveSubTab] = useState<'VENDOR' | 'UNDER'>('VENDOR');
 
   // Filter shift pada Sub-Tab Under ('ALL' atau ID shift spesifik)
@@ -405,7 +405,7 @@ export default function AbsenMasukTab({
     const hasAdditionalPhoto = additionalPhotoSlots.some((slot) => !!slot.file || !!slot.existingUrl);
 
     if (!hasRegularPhoto && !hasAdditionalPhoto) {
-      alert('Wajib melampirkan minimal 1 foto apel bukti fisik kehadiran kontingen vendor!');
+      alert('Wajib melampirkan minimal 1 foto bukti fisik kehadiran kontingen vendor!');
       return;
     }
 
@@ -599,7 +599,7 @@ export default function AbsenMasukTab({
               Absen Masuk & Distribusi Pos Under Lapangan
             </h1>
             <p className="text-xs text-blue-100/90 mt-0.5 max-w-2xl leading-relaxed">
-              Merekam kehadiran fisik apel pasukan dari vendor, kemudian mendistribusikannya ke 5 divisi kerja 
+              Merekam kehadiran fisik serah terima pasukan dari vendor, kemudian mendistribusikannya ke 5 divisi kerja 
               (Bongkar, Muat, Sortir 3 Jalur, FIFO, Repack) yang dipegang langsung oleh Under Lapangan.
             </p>
           </div>
@@ -616,7 +616,7 @@ export default function AbsenMasukTab({
               }`}
             >
               <Building2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>1. Apel Serah Terima Vendor</span>
+              <span>1. Serah Terima Pasukan Vendor</span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800">
                 {totalVendorTotal} MP
               </span>
@@ -706,7 +706,7 @@ export default function AbsenMasukTab({
             {totalVendorTotal === 0 && totalUnderTotal === 0 ? (
               <span className="px-3 py-1.5 rounded-xl bg-slate-200/80 text-slate-700 text-xs font-bold flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-slate-500" />
-                Menunggu Serah Terima Apel
+                Menunggu Serah Terima Masuk
               </span>
             ) : isBalanced ? (
               <span className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-black shadow-xs flex items-center gap-1.5">
@@ -729,7 +729,7 @@ export default function AbsenMasukTab({
       </div>
 
       {/* ==================================================================== */}
-      {/* KONTEN SUB-TAB 1: APEL SERAH TERIMA VENDOR                          */}
+      {/* KONTEN SUB-TAB 1: SERAH TERIMA PASUKAN VENDOR                        */}
       {/* ==================================================================== */}
       {activeSubTab === 'VENDOR' && (
         <div className="space-y-4">
@@ -738,7 +738,7 @@ export default function AbsenMasukTab({
             <div className="flex items-center gap-2 text-slate-600">
               <Camera className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                <strong>Aturan Apel Vendor:</strong> Vendor membawa anak-anak naik ke lapangan, mengambil foto full bawaan masing-masing, 
+                <strong>Ketentuan Serah Terima Vendor:</strong> Vendor membawa anak-anak naik ke lapangan, mengambil foto full bawaan masing-masing, 
                 dan mencatat kuota hadir Regular & Additional. Foto dapat diunggah full kontingen tanpa wajib memecah per bagian.
               </span>
             </div>
@@ -811,12 +811,12 @@ export default function AbsenMasukTab({
                           {hasCheckedIn ? (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Sudah Apel ({actualTotal} Org)
+                              Sudah Masuk ({actualTotal} Org)
                             </>
                           ) : (
                             <>
                               <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              Menunggu Apel
+                              Menunggu Masuk
                             </>
                           )}
                         </span>
@@ -892,7 +892,7 @@ export default function AbsenMasukTab({
                           <div className="space-y-1.5 pt-1">
                             <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
                               <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                              Foto Apel Vendor ({totalPhotosOnCard}):
+                              Foto Kontingen Vendor ({totalPhotosOnCard}):
                             </span>
 
                             <div className="grid grid-cols-3 gap-1.5">
@@ -948,7 +948,7 @@ export default function AbsenMasukTab({
                         }`}
                       >
                         <LogIn className="w-3.5 h-3.5" />
-                        {hasCheckedIn ? 'Edit Absen Masuk & Foto Apel' : 'Input Absen Masuk (Wajib Foto)'}
+                        {hasCheckedIn ? 'Edit Absen Masuk & Foto' : 'Input Absen Masuk (Wajib Foto)'}
                       </button>
                     </div>
                   </div>
@@ -1430,7 +1430,7 @@ export default function AbsenMasukTab({
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-black text-lg text-slate-900">
-                  Apel Serah Terima Kontingen Vendor
+                  Serah Terima Kontingen Vendor
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
                   {getShortVendorName(selectedPlotingan.vendor.name)} ({selectedPlotingan.vendor.name}) &bull; Shift {selectedPlotingan.shift.name} ({selectedDate})
@@ -1446,12 +1446,12 @@ export default function AbsenMasukTab({
 
             <form onSubmit={handleVendorSubmit} className="space-y-5 mt-4">
               
-              {/* Box Realisasi Kehadiran Apel */}
+              {/* Box Realisasi Kehadiran Masuk */}
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-blue-600" />
-                    Realisasi Orang Hadir (Fisik Apel)
+                    Realisasi Orang Hadir Masuk
                   </span>
                   <span className="text-xs font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
                     Target Kuota: {selectedPlotingan.targetHeadcount} Org
@@ -1498,20 +1498,20 @@ export default function AbsenMasukTab({
 
                 {/* Total Hadir Bar */}
                 <div className="flex items-center justify-between text-xs pt-1 px-1 font-bold">
-                  <span className="text-slate-600">Total Masuk Fisik Apel:</span>
+                  <span className="text-slate-600">Total Masuk Fisik:</span>
                   <span className="text-sm font-black text-emerald-700">
                     {totalHeadcountInput} Orang
                   </span>
                 </div>
               </div>
 
-              {/* Upload Foto Apel Vendor */}
+              {/* Upload Foto Kontingen Vendor */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
                       <Camera className="w-4 h-4 text-blue-600" />
-                      Foto Bukti Apel Pasukan Vendor
+                      Foto Bukti Kontingen Vendor
                     </span>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Vendor dapat mengunggah 1 foto kontingen full bersama, atau foto per barisan.
@@ -1603,10 +1603,10 @@ export default function AbsenMasukTab({
                 </div>
               </div>
 
-              {/* Catatan Apel */}
+              {/* Catatan Masuk */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Catatan Apel Masuk Vendor (Opsional):
+                  Catatan Masuk Vendor (Opsional):
                 </label>
                 <textarea
                   value={notes}
@@ -1621,7 +1621,7 @@ export default function AbsenMasukTab({
               {!canSubmitVendor && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>Wajib mengisi jumlah orang hadir dan melampirkan minimal 1 foto bukti fisik apel kontingen!</span>
+                  <span>Wajib mengisi jumlah orang hadir dan melampirkan minimal 1 foto bukti fisik kontingen vendor!</span>
                 </div>
               )}
 
@@ -1651,7 +1651,7 @@ export default function AbsenMasukTab({
                   ) : isSubmitting ? (
                     'Menyimpan Data...'
                   ) : (
-                    'Simpan Apel Masuk'
+                    'Simpan Absen Masuk'
                   )}
                 </button>
               </div>
