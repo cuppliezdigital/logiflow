@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import * as XLSX from 'xlsx';
-import { convertTo24Hour } from '@/components/AbsenPulangTab';
+import { convertTo24Hour } from '@/lib/timeUtils';
 import { getShortVendorName } from '@/lib/vendorMapping';
 
 // Helper mengisi sel Excel dengan nilai, tipe, dan rumus formula bawaan
@@ -75,12 +75,12 @@ export async function GET(request: NextRequest) {
 
     // Kumpulkan daftar vendor unik yang terlibat (dengan nama singkatan resmi)
     const uniqueVendors: string[] = Array.from(
-      new Set(records.map((r) => getShortVendorName(r.vendor.name)))
+      new Set<string>(records.map((r) => getShortVendorName(r.vendor.name)))
     ).sort();
 
     // Kumpulkan daftar shift unik
     const uniqueShifts: string[] = Array.from(
-      new Set(records.map((r) => r.shift.name))
+      new Set<string>(records.map((r) => r.shift.name))
     );
 
     let curRow = 0;

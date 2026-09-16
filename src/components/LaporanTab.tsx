@@ -38,7 +38,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
-import { convertTo24Hour } from '@/components/AbsenPulangTab';
+import { convertTo24Hour } from '@/lib/timeUtils';
 import { getShortVendorName } from '@/lib/vendorMapping';
 
 // Definisi props untuk komponen LaporanTab
