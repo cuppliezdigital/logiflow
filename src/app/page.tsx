@@ -132,6 +132,7 @@ export default function Home() {
             {activeTab === 'masuk' && (
               <AbsenMasukTab
                 plotingans={plotingans}
+                shifts={shifts}
                 selectedDate={selectedDate}
                 onRefresh={handleRefresh}
               />

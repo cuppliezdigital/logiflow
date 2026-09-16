@@ -423,6 +423,50 @@ export async function GET(request: NextRequest) {
     XLSX.utils.book_append_sheet(workbook, wsDetail, 'Data Detail Plotingan');
 
     // ========================================================================
+    // SHEET 4: DISTRIBUSI POS & UNDER LAPANGAN J&T (5 DIVISI)
+    // ========================================================================
+    const underAssignments = await prisma.underAssignment.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        shift: true,
+      },
+      orderBy: [{ date: 'asc' }, { division: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const rowsUnder = underAssignments.map((u, index) => ({
+      'No': index + 1,
+      'Tanggal': u.date,
+      'Shift': u.shift.name,
+      'Divisi': u.division.replace('_', ' - '),
+      'Nama Under Lapangan': u.underName,
+      'Regular (Reg)': u.regularCount,
+      'Additional (Add)': u.additionalCount,
+      'Total Anak (MP)': u.totalHeadcount,
+      'Catatan Pos / Dock': u.notes || '-',
+      'Foto Regu': u.photoUrl ? 'Tersedia' : 'Belum Ada',
+    }));
+
+    const wsUnder = XLSX.utils.json_to_sheet(rowsUnder);
+    wsUnder['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 12 }, // Tanggal
+      { wch: 12 }, // Shift
+      { wch: 22 }, // Divisi
+      { wch: 22 }, // Nama Under
+      { wch: 15 }, // Reg
+      { wch: 16 }, // Add
+      { wch: 16 }, // Total
+      { wch: 30 }, // Catatan
+      { wch: 12 }, // Foto
+    ];
+    XLSX.utils.book_append_sheet(workbook, wsUnder, 'Distribusi Under Lapangan');
+
+    // ========================================================================
     // HASILKAN FILE BINARY EXCEL & RESPONSE DOWNLOAD
     // ========================================================================
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });

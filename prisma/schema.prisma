@@ -32,12 +32,13 @@ model Vendor {
 // Jam kerja tidak dipatok kaku (bersifat fleksibel per kebutuhan gudang).
 // ----------------------------------------------------------------------------
 model Shift {
-  id         String      @id @default(cuid())
-  name       String      // Nama shift ("Shift Pagi" atau "Shift Malam")
-  startTime  String?     // Waktu mulai (opsional / fleksibel)
-  endTime    String?     // Waktu selesai (opsional / fleksibel)
-  createdAt  DateTime    @default(now())
-  plotingans Plotingan[] // Relasi: Satu shift bisa diisi oleh banyak plotingan vendor
+  id               String            @id @default(cuid())
+  name             String            // Nama shift ("Shift Pagi" atau "Shift Malam")
+  startTime        String?           // Waktu mulai (opsional / fleksibel)
+  endTime          String?           // Waktu selesai (opsional / fleksibel)
+  createdAt        DateTime          @default(now())
+  plotingans       Plotingan[]       // Relasi: Satu shift bisa diisi oleh banyak plotingan vendor
+  underAssignments UnderAssignment[] // Relasi: Satu shift memiliki banyak penugasan under lapangan
 }
 
 // ----------------------------------------------------------------------------
@@ -130,4 +131,28 @@ model AttendanceOut {
   selisihCount              Int          @default(0)     // Total selisih orang kabur
   isBalanced                Boolean      @default(true)  // True jika selisihCount == 0 (seimbang/klop)
   createdAt                 DateTime     @default(now())
+}
+
+// ----------------------------------------------------------------------------
+// 6. MODEL UNDER ASSIGNMENT (Distribusi Pos & Under Lapangan J&T)
+// Karyawan / Leader Lapangan J&T ("Under") yang memegang anak-anak Reg & Add
+// di masing-masing divisi (Bongkar, Muat, Sortir 3 Jalur, FIFO, Repack)
+// tanpa memedulikan asal vendor.
+// ----------------------------------------------------------------------------
+model UnderAssignment {
+  id              String   @id @default(cuid())
+  date            String   // Tanggal kerja format YYYY-MM-DD
+  shiftId         String
+  shift           Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  division        String   // BONGKARAN, MUATAN, SORTIR_BODEBEK, SORTIR_SUMATRAAN, SORTIR_JAKARTA, FIFO, REPACK
+  underName       String   // Nama Under / Leader JNT (misal: "Under Budi", "Under 1")
+  regularCount    Int      @default(0) // Jumlah anak Regular yang dipegang
+  additionalCount Int      @default(0) // Jumlah anak Additional yang dipegang
+  totalHeadcount  Int      // regularCount + additionalCount
+  photoUrl        String?  // Foto bukti regu bersama Under
+  notes           String?  // Catatan lapangan
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date, shiftId])
 }

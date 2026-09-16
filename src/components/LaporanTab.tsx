@@ -27,10 +27,15 @@ import {
   Camera,
   ZoomIn,
   Eye,
-  ArrowUpRight,
-  Clock,
-  LayoutGrid,
-  Table
+  ArrowUpRight, 
+  Clock, 
+  LayoutGrid, 
+  Table,
+  Layers,
+  Box,
+  Truck,
+  Package,
+  MapPin
 } from 'lucide-react';
 import { getReportStats } from '@/app/actions';
 import { convertTo24Hour } from '@/components/AbsenPulangTab';
@@ -58,8 +63,8 @@ export default function LaporanTab({
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // State mode tampilan: 'MATRIX' (Format Matriks Lapangan seperti di foto) vs 'TABLE' (Detail Baris)
-  const [viewMode, setViewMode] = useState<'MATRIX' | 'TABLE'>('MATRIX');
+  // State mode tampilan: 'MATRIX' vs 'TABLE' vs 'UNDER' (Distribusi Under Lapangan)
+  const [viewMode, setViewMode] = useState<'MATRIX' | 'TABLE' | 'UNDER'>('MATRIX');
   // State filter shift pada tampilan matriks (ALL, atau nama shift spesifik)
   const [matrixShiftFilter, setMatrixShiftFilter] = useState<string>('ALL');
 
@@ -122,6 +127,7 @@ export default function LaporanTab({
   };
 
   const records = reportData?.records || [];
+  const underAssignments: any[] = reportData?.underAssignments || [];
 
   // Ekstrak seluruh data kejadian orang tumbang di rentang tanggal ini untuk modal drill-down
   const allTumbangIncidents: Array<{
@@ -474,11 +480,126 @@ export default function LaporanTab({
                 <Table className="w-3.5 h-3.5" />
                 <span>Tabel Baris</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('UNDER')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'UNDER'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Distribusi Under ({underAssignments.length})</span>
+              </button>
             </div>
           </div>
         </div>
 
-        {records.length === 0 ? (
+        {viewMode === 'UNDER' ? (
+          /* ================================================================= */
+          /* TAMPILAN REKAP DISTRIBUSI POS & UNDER LAPANGAN                    */
+          /* ================================================================= */
+          <div className="p-5 space-y-5">
+            {/* Ringkasan Divisi Quick Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {[
+                { name: 'Bongkaran', key: 'BONGKARAN', icon: Box, color: 'text-blue-600 bg-blue-50 border-blue-200' },
+                { name: 'Muatan', key: 'MUATAN', icon: Truck, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                { name: 'Sortir (3 Jalur)', key: 'SORTIR', icon: Layers, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+                { name: 'FIFO', key: 'FIFO', icon: Clock, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                { name: 'Repack', key: 'REPACK', icon: Package, color: 'text-rose-600 bg-rose-50 border-rose-200' },
+              ].map((div) => {
+                const items = div.key === 'SORTIR'
+                  ? underAssignments.filter((u: any) => u.division.startsWith('SORTIR'))
+                  : underAssignments.filter((u: any) => u.division === div.key);
+                const count = items.reduce((s: number, u: any) => s + (u.totalHeadcount || 0), 0);
+                const IconComponent = div.icon;
+
+                return (
+                  <div key={div.key} className={`p-3 rounded-xl border ${div.color} flex flex-col justify-between`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-tight">{div.name}</span>
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-xl font-black">{count} <span className="text-xs font-normal">Org</span></span>
+                      <span className="text-[10px] block opacity-80 mt-0.5">{items.length} Regu Under</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {underAssignments.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl p-6">
+                <Layers className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-600">Belum Ada Data Penugasan Under Lapangan</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Data penugasan Under diinput melalui Tab 2 (Absen Masuk &gt; Distribusi Under).
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-100 uppercase text-[11px] font-black text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3 w-12 text-center">No</th>
+                      <th className="py-2.5 px-3">Tanggal</th>
+                      <th className="py-2.5 px-3">Shift</th>
+                      <th className="py-2.5 px-3">Divisi</th>
+                      <th className="py-2.5 px-3">Nama Under Lapangan</th>
+                      <th className="py-2.5 px-3 text-center">Regular</th>
+                      <th className="py-2.5 px-3 text-center">Additional</th>
+                      <th className="py-2.5 px-3 text-center font-black">Total Anak</th>
+                      <th className="py-2.5 px-3 text-center">Foto Regu</th>
+                      <th className="py-2.5 px-3">Catatan Lapangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {underAssignments.map((u: any, idx: number) => {
+                      const divLabel = u.division.replace('SORTIR_', 'Sortir - ').replace('BODEBEK', 'Bodebek').replace('SUMATRAAN', 'Sumatraan').replace('JAKARTA', 'Jakarta');
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">{u.date}</td>
+                          <td className="py-2.5 px-3 font-semibold">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                              {u.shift?.name || 'Shift'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-bold text-indigo-700">{divLabel}</td>
+                          <td className="py-2.5 px-3 font-extrabold text-slate-900">{u.underName}</td>
+                          <td className="py-2.5 px-3 text-center font-bold text-blue-700">{u.regularCount}</td>
+                          <td className="py-2.5 px-3 text-center font-bold text-amber-700">{u.additionalCount}</td>
+                          <td className="py-2.5 px-3 text-center font-black text-slate-900 bg-slate-50/50">
+                            {u.totalHeadcount} MP
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {u.photoUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setLightboxPhoto({ url: u.photoUrl, title: `Regu: ${u.underName} (${divLabel})` })}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer"
+                              >
+                                <Camera className="w-3 h-3" /> Lihat Foto
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 italic text-[10px]">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px] italic">
+                            {u.notes || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : records.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-sm">
             Tidak ada rekaman data plotingan pada rentang tanggal yang dipilih.
           </div>

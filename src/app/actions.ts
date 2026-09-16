@@ -402,13 +402,19 @@ export async function submitAbsenMasuk(formData: FormData) {
     }
   }
 
-  // VALIDASI KETAT WAJIB FOTO (STRICT VALIDATION):
-  if (actualRegular > 0 && regularPhotos.length === 0) {
-    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan fisik untuk pasukan REGULAR!' };
+  // VALIDASI FOTO APEL MASUK:
+  // Mendukung foto full barisan sekaligus atau foto terpisah per kategori
+  const hasAnyPhoto = regularPhotos.length > 0 || additionalPhotos.length > 0;
+  if (actualHeadcount > 0 && !hasAnyPhoto) {
+    return { success: false, error: 'Wajib melampirkan minimal 1 foto apel kehadiran fisik pasukan vendor!' };
   }
 
-  if (actualAdditional > 0 && additionalPhotos.length === 0) {
-    return { success: false, error: 'Wajib melampirkan minimal 1 foto barisan fisik untuk pasukan ADDITIONAL!' };
+  // Jika vendor membawa kedua kategori (Reg & Add) namun mengunggah foto full kontingen secara serentak,
+  // salin referensi foto agar kedua kategori memiliki data dokumentasi yang lengkap
+  if (actualRegular > 0 && regularPhotos.length === 0 && additionalPhotos.length > 0) {
+    regularPhotos.push(...additionalPhotos);
+  } else if (actualAdditional > 0 && additionalPhotos.length === 0 && regularPhotos.length > 0) {
+    additionalPhotos.push(...regularPhotos);
   }
 
   const photosRegularJson = JSON.stringify(regularPhotos);
@@ -703,8 +709,27 @@ export async function getReportStats(startDate: string, endDate: string, vendorI
   const overallFulfillment = totalTarget > 0 ? Math.round((totalMasuk / totalTarget) * 100) : 0;
   const overallRetention = totalMasuk > 0 ? Math.round((totalPulang / totalMasuk) * 100) : 0;
 
+  // Mengambil data penugasan Under Lapangan untuk periode laporan
+  const underAssignments = await prisma.underAssignment.findMany({
+    where: {
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    include: {
+      shift: true,
+    },
+    orderBy: [
+      { date: 'desc' },
+      { division: 'asc' },
+      { createdAt: 'asc' },
+    ],
+  });
+
   return {
     records,
+    underAssignments,
     totals: {
       totalTarget,
       regTarget,
@@ -725,4 +750,124 @@ export async function getReportStats(startDate: string, endDate: string, vendorI
       overallRetention,
     },
   };
+}
+
+// ----------------------------------------------------------------------------
+// 7. MODUL DISTRIBUSI POS & UNDER LAPANGAN J&T (DISTRIBUSI PER DIVISI)
+// Karyawan / Leader Lapangan J&T ("Under") yang memegang anak-anak Reg & Add
+// di masing-masing divisi (Bongkar, Muat, Sortir 3 Jalur, FIFO, Repack)
+// tanpa memedulikan asal vendor.
+// ----------------------------------------------------------------------------
+
+/**
+ * Menyimpan atau memperbarui data penugasan regu Under Lapangan.
+ * Menerima file foto regu lapangan yang diunggah dan menyimpannya di folder uploads.
+ */
+export async function saveUnderAssignment(formData: FormData) {
+  try {
+    const id = formData.get('id') as string | null;
+    const date = formData.get('date') as string;
+    const shiftId = formData.get('shiftId') as string;
+    const division = formData.get('division') as string;
+    const underName = (formData.get('underName') as string)?.trim();
+    const regularCount = parseInt(formData.get('regularCount') as string, 10) || 0;
+    const additionalCount = parseInt(formData.get('additionalCount') as string, 10) || 0;
+    const totalHeadcount = regularCount + additionalCount;
+    const notes = (formData.get('notes') as string)?.trim() || null;
+    const photoFile = formData.get('photo') as File | null;
+    const existingPhotoUrl = formData.get('existingPhotoUrl') as string | null;
+
+    if (!date || !shiftId || !division || !underName) {
+      return { success: false, error: 'Data belum lengkap. Harap isi tanggal, shift, divisi, dan nama Under.' };
+    }
+
+    if (totalHeadcount <= 0) {
+      return { success: false, error: 'Jumlah anak yang dipegang Under minimal 1 orang (Regular atau Additional).' };
+    }
+
+    let photoUrl = existingPhotoUrl || null;
+    if (photoFile && photoFile.size > 0) {
+      const uploaded = await saveUploadedFile(photoFile);
+      if (uploaded) {
+        photoUrl = uploaded;
+      }
+    }
+
+    if (id) {
+      const updated = await prisma.underAssignment.update({
+        where: { id },
+        data: {
+          shiftId,
+          division,
+          underName,
+          regularCount,
+          additionalCount,
+          totalHeadcount,
+          photoUrl,
+          notes,
+        },
+      });
+      revalidatePath('/');
+      return { success: true, data: updated };
+    } else {
+      const created = await prisma.underAssignment.create({
+        data: {
+          date,
+          shiftId,
+          division,
+          underName,
+          regularCount,
+          additionalCount,
+          totalHeadcount,
+          photoUrl,
+          notes,
+        },
+      });
+      revalidatePath('/');
+      return { success: true, data: created };
+    }
+  } catch (error: any) {
+    console.error('Gagal menyimpan penugasan Under:', error);
+    return { success: false, error: error.message || 'Gagal menyimpan penugasan Under.' };
+  }
+}
+
+/**
+ * Menghapus penugasan regu Under Lapangan berdasarkan ID.
+ */
+export async function deleteUnderAssignment(id: string) {
+  try {
+    if (!id) return { success: false, error: 'ID penugasan Under tidak valid.' };
+    await prisma.underAssignment.delete({ where: { id } });
+    revalidatePath('/');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Gagal menghapus penugasan Under:', error);
+    return { success: false, error: error.message || 'Gagal menghapus penugasan Under.' };
+  }
+}
+
+/**
+ * Mengambil daftar penugasan Under Lapangan berdasarkan tanggal dan filter shift opsional.
+ */
+export async function getUnderAssignments(date: string, shiftId?: string) {
+  try {
+    const list = await prisma.underAssignment.findMany({
+      where: {
+        date,
+        ...(shiftId && shiftId !== 'ALL' ? { shiftId } : {}),
+      },
+      include: {
+        shift: true,
+      },
+      orderBy: [
+        { division: 'asc' },
+        { createdAt: 'asc' },
+      ],
+    });
+    return list;
+  } catch (error: any) {
+    console.error('Gagal mengambil data penugasan Under:', error);
+    return [];
+  }
 }

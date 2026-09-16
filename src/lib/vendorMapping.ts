@@ -35,3 +35,4 @@ export function getShortVendorName(name?: string | null): string {
   const trimmed = name.trim();
   return VENDOR_SHORT_NAMES[trimmed] || trimmed;
 }
+
