@@ -15,14 +15,15 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import fs from 'fs';
 import path from 'path';
+import { uploadToSupabaseStorage, isSupabaseConfigured } from '@/lib/supabase';
 
 // ----------------------------------------------------------------------------
-// HELPER: Menyimpan File Gambar yang Diunggah ke Folder public/uploads
+// HELPER: Menyimpan File Gambar yang Diunggah (Supabase Storage / Lokal)
 // ----------------------------------------------------------------------------
 /**
- * Fungsi pembantu untuk memproses file upload (foto absen masuk reg/add, checkout, klinik).
- * File disimpan di folder `public/uploads/` dengan nama unik agar tidak bentrok.
- * Mengembalikan path URL lokal (misal: /uploads/1712345678-abc.jpg).
+ * Fungsi pembantu untuk memproses file upload (foto serah terima masuk, checkout pulang, klinik).
+ * Di Vercel: otomatis diunggah ke Supabase Storage dan menghasilkan URL publik permanen.
+ * Di Localhost: fallback otomatis disimpan di folder `public/uploads/`.
  */
 async function saveUploadedFile(file: File | null): Promise<string | null> {
   if (!file || file.size === 0) return null;
@@ -30,19 +31,33 @@ async function saveUploadedFile(file: File | null): Promise<string | null> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // Pastikan folder public/uploads sudah ada
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
   // Generate nama file unik menggunakan timestamp dan random string
   const ext = path.extname(file.name) || '.jpg';
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
-  const filePath = path.join(uploadDir, fileName);
 
-  fs.writeFileSync(filePath, buffer);
-  return `/uploads/${fileName}`;
+  // 1. Jika Supabase Storage terkonfigurasi (di Vercel / Cloud)
+  if (isSupabaseConfigured) {
+    const cloudUrl = await uploadToSupabaseStorage(buffer, fileName, file.type || 'image/jpeg');
+    if (cloudUrl) {
+      return cloudUrl;
+    }
+    // Jika upload ke cloud gagal, coba fallback ke penyimpanan lokal
+  }
+
+  // 2. Fallback: Simpan ke folder lokal public/uploads (saat develop di localhost)
+  try {
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadDir, fileName);
+    fs.writeFileSync(filePath, buffer);
+    return `/uploads/${fileName}`;
+  } catch (localErr) {
+    console.error('Peringatan: Gagal menyimpan file ke penyimpanan lokal:', localErr);
+    return null;
+  }
 }
 
 // ----------------------------------------------------------------------------

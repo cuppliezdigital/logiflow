@@ -1,10 +1,12 @@
 // ============================================================================
 // KONFIGURASI DATABASE LOGIFLOW
-// Menggunakan database SQLite lokal dan Prisma ORM Client
+// Menggunakan database PostgreSQL (Supabase) dan Prisma ORM Client
+// Mendukung connection pooling (port 6543) dan direct connection (port 5432)
 // ============================================================================
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
