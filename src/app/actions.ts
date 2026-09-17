@@ -127,10 +127,35 @@ export async function deleteVendor(id: string) {
 // 2. MASTER DATA: Mengambil Data Vendor Aktif dan Shift Kerja
 // ----------------------------------------------------------------------------
 export async function getMasterData() {
-  const [vendors, shifts] = await Promise.all([
+  let [vendors, shifts] = await Promise.all([
     prisma.vendor.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } }),
     prisma.shift.findMany({ orderBy: { name: 'asc' } }),
   ]);
+
+  // Auto-seed: Buat Shift Pagi & Shift Malam jika database baru masih kosong
+  if (shifts.length === 0) {
+    await prisma.shift.createMany({
+      data: [
+        { name: 'Shift Pagi', startTime: '07:00', endTime: '15:30' },
+        { name: 'Shift Malam', startTime: '19:00', endTime: '03:30' },
+      ],
+    });
+    shifts = await prisma.shift.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  // Auto-seed: Inisialisasi daftar vendor awal jika belum ada
+  if (vendors.length === 0) {
+    await prisma.vendor.createMany({
+      data: [
+        { name: 'PT BAL Logistik' },
+        { name: 'PT SDM Mitra Jaya' },
+        { name: 'PT MAXIMUS Tenaga' },
+        { name: 'PT ESA Mandiri' },
+      ],
+    });
+    vendors = await prisma.vendor.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } });
+  }
+
   return { vendors, shifts };
 }
 
