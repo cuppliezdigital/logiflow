@@ -132,8 +132,47 @@ export async function getMasterData() {
     prisma.shift.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
-  // Auto-seed: Buat Shift Pagi & Shift Malam jika database baru masih kosong
-  if (shifts.length === 0) {
+  // 1. DEDUP & CLEANUP SHIFT (Mencegah tombol shift ganda/dobel)
+  const uniqueShiftMap = new Map<string, typeof shifts[0]>();
+  const duplicateShiftIds: { dupId: string; keeperId: string }[] = [];
+
+  for (const s of shifts) {
+    // Normalisasi nama shift (Shift Pagi & Shift Malam)
+    const cleanName = s.name.toLowerCase().includes('pagi')
+      ? 'Shift Pagi'
+      : s.name.toLowerCase().includes('malam')
+      ? 'Shift Malam'
+      : s.name.trim();
+
+    if (!uniqueShiftMap.has(cleanName)) {
+      uniqueShiftMap.set(cleanName, s);
+    } else {
+      const keeper = uniqueShiftMap.get(cleanName)!;
+      duplicateShiftIds.push({ dupId: s.id, keeperId: keeper.id });
+    }
+  }
+
+  // Jika terdeteksi duplikasi shift di database, migrasi relasi data lalu hapus ID yang duplikat
+  if (duplicateShiftIds.length > 0) {
+    try {
+      for (const item of duplicateShiftIds) {
+        await prisma.plotingan.updateMany({
+          where: { shiftId: item.dupId },
+          data: { shiftId: item.keeperId },
+        });
+        await prisma.underAssignment.updateMany({
+          where: { shiftId: item.dupId },
+          data: { shiftId: item.keeperId },
+        });
+        await prisma.shift.delete({ where: { id: item.dupId } }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Peringatan saat membersihkan duplikasi shift:', e);
+    }
+    // Muat ulang daftar shift yang sudah bersih
+    shifts = Array.from(uniqueShiftMap.values());
+  } else if (shifts.length === 0) {
+    // Auto-seed: Buat Shift Pagi & Shift Malam jika database baru masih benar-benar kosong
     await prisma.shift.createMany({
       data: [
         { name: 'Shift Pagi', startTime: '07:00', endTime: '15:30' },
@@ -141,10 +180,39 @@ export async function getMasterData() {
       ],
     });
     shifts = await prisma.shift.findMany({ orderBy: { name: 'asc' } });
+  } else {
+    shifts = Array.from(uniqueShiftMap.values());
   }
 
-  // Auto-seed: Inisialisasi daftar vendor awal jika belum ada
-  if (vendors.length === 0) {
+  // 2. DEDUP & CLEANUP VENDOR (Mencegah nama vendor ganda)
+  const uniqueVendorMap = new Map<string, typeof vendors[0]>();
+  const duplicateVendorIds: { dupId: string; keeperId: string }[] = [];
+
+  for (const v of vendors) {
+    const cleanName = v.name.toLowerCase().trim();
+    if (!uniqueVendorMap.has(cleanName)) {
+      uniqueVendorMap.set(cleanName, v);
+    } else {
+      const keeper = uniqueVendorMap.get(cleanName)!;
+      duplicateVendorIds.push({ dupId: v.id, keeperId: keeper.id });
+    }
+  }
+
+  if (duplicateVendorIds.length > 0) {
+    try {
+      for (const item of duplicateVendorIds) {
+        await prisma.plotingan.updateMany({
+          where: { vendorId: item.dupId },
+          data: { vendorId: item.keeperId },
+        });
+        await prisma.vendor.delete({ where: { id: item.dupId } }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('Peringatan saat membersihkan duplikasi vendor:', e);
+    }
+    vendors = Array.from(uniqueVendorMap.values());
+  } else if (vendors.length === 0) {
+    // Auto-seed: Inisialisasi daftar vendor awal jika belum ada
     await prisma.vendor.createMany({
       data: [
         { name: 'PT BAL Logistik' },
@@ -154,6 +222,8 @@ export async function getMasterData() {
       ],
     });
     vendors = await prisma.vendor.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } });
+  } else {
+    vendors = Array.from(uniqueVendorMap.values());
   }
 
   return { vendors, shifts };

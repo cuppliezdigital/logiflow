@@ -233,11 +233,14 @@ export default function AbsenMasukTab({
     loadUnderAssignments();
   }, [loadUnderAssignments]);
 
-  // Master shifts fallback jika kosong
-  const availableShifts = shifts && shifts.length > 0 ? shifts : [
-    { id: 'pagi', name: 'Pagi' },
-    { id: 'malam', name: 'Malam' },
+  // Master shifts fallback jika kosong, sekaligus deduplikasi agar tidak pernah ada shift ganda
+  const rawShifts = shifts && shifts.length > 0 ? shifts : [
+    { id: 'pagi', name: 'Shift Pagi' },
+    { id: 'malam', name: 'Shift Malam' },
   ];
+  const availableShifts = rawShifts.filter((s, idx, arr) =>
+    idx === arr.findIndex((t) => t.name.toLowerCase().trim() === s.name.toLowerCase().trim())
+  );
 
   // --------------------------------------------------------------------------
   // 6. HELPER SLOT FOTO DINAMIS VENDOR (SUB-TAB 1)

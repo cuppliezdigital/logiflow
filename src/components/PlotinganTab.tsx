@@ -59,6 +59,16 @@ export default function PlotinganTab({
   onRefresh,
   onVendorsChanged,
 }: PlotinganTabProps) {
+  // Deduplikasi shifts & vendors agar UI selalu bersih tanpa ganda/dobel
+  const uniqueShifts = shifts.filter(
+    (s, idx, arr) =>
+      idx === arr.findIndex((t) => t.name.toLowerCase().trim() === s.name.toLowerCase().trim())
+  );
+  const uniqueVendors = vendors.filter(
+    (v, idx, arr) =>
+      idx === arr.findIndex((t) => t.name.toLowerCase().trim() === v.name.toLowerCase().trim())
+  );
+
   // --------------------------------------------------------------------------
   // STATE MANAGEMENT
   // --------------------------------------------------------------------------
@@ -69,7 +79,7 @@ export default function PlotinganTab({
 
   // STATE FITUR BARU: Input Plotingan Sekaligus (Batch Massal)
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [batchShiftId, setBatchShiftId] = useState(shifts[0]?.id || '');
+  const [batchShiftId, setBatchShiftId] = useState(uniqueShifts[0]?.id || shifts[0]?.id || '');
   const [batchDefaultHours, setBatchDefaultHours] = useState('');
   const [batchRows, setBatchRows] = useState<{
     [vendorId: string]: {
@@ -88,8 +98,8 @@ export default function PlotinganTab({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State untuk input data plotingan terpadu
-  const [vendorId, setVendorId] = useState(vendors[0]?.id || '');
-  const [shiftId, setShiftId] = useState(shifts[0]?.id || '');
+  const [vendorId, setVendorId] = useState(uniqueVendors[0]?.id || vendors[0]?.id || '');
+  const [shiftId, setShiftId] = useState(uniqueShifts[0]?.id || shifts[0]?.id || '');
   
   // Target total kebutuhan Manpower (MP) per vendor
   const [targetHeadcount, setTargetHeadcount] = useState<number>(20);
@@ -112,8 +122,8 @@ export default function PlotinganTab({
   // Buka modal untuk menambah plotingan baru
   const handleOpenAdd = () => {
     setEditingItem(null);
-    setVendorId(vendors[0]?.id || '');
-    setShiftId(shifts[0]?.id || '');
+    setVendorId(uniqueVendors[0]?.id || vendors[0]?.id || '');
+    setShiftId(uniqueShifts[0]?.id || shifts[0]?.id || '');
     setTargetHeadcount(20);
     setWorkingHours('');
     setNotes('');
@@ -616,7 +626,7 @@ export default function PlotinganTab({
                     onChange={(e) => setVendorId(e.target.value)}
                     className="w-full border-2 border-slate-300 bg-white rounded-xl px-3.5 py-2.5 text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs cursor-pointer"
                   >
-                    {vendors.map((v) => (
+                    {uniqueVendors.map((v) => (
                       <option 
                         key={v.id} 
                         value={v.id}
@@ -634,7 +644,7 @@ export default function PlotinganTab({
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pilih Shift Kerja</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {shifts.map((s) => {
+                    {uniqueShifts.map((s) => {
                       const isPagi = s.name.toLowerCase().includes('pagi');
                       const isSelected = shiftId === s.id;
                       return (
@@ -784,7 +794,7 @@ export default function PlotinganTab({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-700 uppercase">Pilih Shift:</span>
                   <div className="inline-flex p-1 bg-slate-200/80 rounded-xl">
-                    {shifts.map((s) => {
+                    {uniqueShifts.map((s) => {
                       const isPagi = s.name.toLowerCase().includes('pagi');
                       const isSelected = batchShiftId === s.id;
                       return (
@@ -912,7 +922,7 @@ export default function PlotinganTab({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {vendors.map((v, idx) => {
+                    {uniqueVendors.map((v, idx) => {
                       const rowData = batchRows[v.id] || { targetHeadcount: 0, workingHours: '', notes: '' };
                       const isFilled = Number(rowData.targetHeadcount) > 0;
                       const hasExisting = plotingans.some((p) => p.vendorId === v.id && p.shiftId === batchShiftId);
