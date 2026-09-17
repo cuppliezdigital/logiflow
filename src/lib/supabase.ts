@@ -25,7 +25,7 @@ export async function uploadToSupabaseStorage(
   fileBuffer: Buffer,
   fileName: string,
   contentType = 'image/jpeg',
-  bucketName = 'logiflow-uploads'
+  bucketName = process.env.SUPABASE_STORAGE_BUCKET || 'absensi-uploads'
 ): Promise<string | null> {
   if (!supabase) return null;
 
@@ -53,3 +53,4 @@ export async function uploadToSupabaseStorage(
     return null;
   }
 }
+
