@@ -4,9 +4,8 @@
 // Mendukung connection pooling (port 6543) dan direct connection (port 5432)
 // ============================================================================
 datasource db {
-  provider  = "postgresql"
+  provider = "sqlite"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 generator client {
