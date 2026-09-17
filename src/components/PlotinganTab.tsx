@@ -154,14 +154,14 @@ export default function PlotinganTab({
   // Menyiapkan baris untuk setiap vendor aktif dengan nilai existing atau default 0
   // ============================================================================
   const handleOpenBatchModal = (targetShiftId?: string) => {
-    const activeShiftId = targetShiftId || batchShiftId || shifts[0]?.id || '';
+    const activeShiftId = targetShiftId || batchShiftId || uniqueShifts[0]?.id || '';
     setBatchShiftId(activeShiftId);
     setCopyFeedback(null);
     setBatchDefaultHours('');
 
-    // Siapkan baris data per vendor aktif
+    // Siapkan baris data per vendor aktif (selalu gunakan uniqueVendors)
     const initialRows: { [vendorId: string]: { targetHeadcount: number; workingHours: string; notes: string } } = {};
-    vendors.forEach((v) => {
+    uniqueVendors.forEach((v) => {
       // Cari apakah vendor ini sudah punya plotingan pada tanggal & shift yang dipilih
       const existing = plotingans.find((p) => p.vendorId === v.id && p.shiftId === activeShiftId);
       initialRows[v.id] = {
@@ -183,7 +183,7 @@ export default function PlotinganTab({
     setCopyFeedback(null);
 
     const updatedRows: { [vendorId: string]: { targetHeadcount: number; workingHours: string; notes: string } } = {};
-    vendors.forEach((v) => {
+    uniqueVendors.forEach((v) => {
       const existing = plotingans.find((p) => p.vendorId === v.id && p.shiftId === newShiftId);
       updatedRows[v.id] = {
         targetHeadcount: existing ? existing.targetHeadcount : 0,
@@ -745,7 +745,7 @@ export default function PlotinganTab({
       <VendorModal
         isOpen={isVendorModalOpen}
         onClose={() => setIsVendorModalOpen(false)}
-        vendors={vendors}
+        vendors={uniqueVendors}
         onVendorsChanged={() => {
           if (onVendorsChanged) onVendorsChanged();
           onRefresh();
@@ -1067,7 +1067,7 @@ export default function PlotinganTab({
                   <div>
                     <span className="text-xs text-slate-500 font-semibold block uppercase">Vendor Terisi</span>
                     <span className="text-base font-extrabold text-slate-800">
-                      {Object.values(batchRows).filter((r) => Number(r.targetHeadcount) > 0).length} / {vendors.length} Vendor
+                      {Object.values(batchRows).filter((r) => Number(r.targetHeadcount) > 0).length} / {uniqueVendors.length} Vendor
                     </span>
                   </div>
                   <div className="h-8 w-px bg-slate-200" />

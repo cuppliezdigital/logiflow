@@ -59,8 +59,17 @@ export default function Home() {
   const loadMasterData = useCallback(async () => {
     try {
       const { vendors: v, shifts: s } = await getMasterData();
-      setVendors(v);
-      setShifts(s);
+      // Deduplikasi ketat di level root agar semua tab pasti bersih tanpa ganda
+      const cleanShifts = (s || []).filter(
+        (item: any, idx: number, arr: any[]) =>
+          idx === arr.findIndex((t: any) => t.name?.toLowerCase().trim() === item.name?.toLowerCase().trim())
+      );
+      const cleanVendors = (v || []).filter(
+        (item: any, idx: number, arr: any[]) =>
+          idx === arr.findIndex((t: any) => t.name?.toLowerCase().trim() === item.name?.toLowerCase().trim())
+      );
+      setVendors(cleanVendors);
+      setShifts(cleanShifts);
     } catch (err) {
       console.error('Gagal memuat master data:', err);
     }
