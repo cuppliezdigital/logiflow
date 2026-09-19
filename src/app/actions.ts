@@ -887,6 +887,8 @@ export async function saveUnderAssignment(formData: FormData) {
     const photoFile = formData.get('photo') as File | null;
     const existingPhotoUrl = formData.get('existingPhotoUrl') as string | null;
 
+    const vendorBreakdownJson = (formData.get('vendorBreakdownJson') as string) || null;
+
     if (!date || !shiftId || !division || !underName) {
       return { success: false, error: 'Data belum lengkap. Harap isi tanggal, shift, divisi, dan nama Under.' };
     }
@@ -903,6 +905,10 @@ export async function saveUnderAssignment(formData: FormData) {
       }
     }
 
+    if (!photoUrl) {
+      return { success: false, error: 'Foto bukti apel regu bersama Under WAJIB dilampirkan dengan stempel jam.' };
+    }
+
     if (id) {
       const updated = await prisma.underAssignment.update({
         where: { id },
@@ -915,6 +921,7 @@ export async function saveUnderAssignment(formData: FormData) {
           totalHeadcount,
           photoUrl,
           notes,
+          vendorBreakdownJson,
         },
       });
       revalidatePath('/');
@@ -931,6 +938,7 @@ export async function saveUnderAssignment(formData: FormData) {
           totalHeadcount,
           photoUrl,
           notes,
+          vendorBreakdownJson,
         },
       });
       revalidatePath('/');
@@ -979,5 +987,208 @@ export async function getUnderAssignments(date: string, shiftId?: string) {
   } catch (error: any) {
     console.error('Gagal mengambil data penugasan Under:', error);
     return [];
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 8. FITUR BARU: INPUT PEKERJA SUSULAN / TELAT (VENDOR LATE ARRIVAL)
+// Memungkinkan vendor mencatat kedatangan pekerja yang telat (1-2 orang) di tengah shift
+// lengkap dengan jam tiba, bukti foto di pos/gerbang, dan otomatis menambah total hadir.
+// ----------------------------------------------------------------------------
+export async function submitLateArrival(formData: FormData) {
+  try {
+    const plotinganId = formData.get('plotinganId') as string;
+    const time = (formData.get('time') as string)?.trim() || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const regular = parseInt(formData.get('regular') as string, 10) || 0;
+    const additional = parseInt(formData.get('additional') as string, 10) || 0;
+    const totalLate = regular + additional;
+    const notes = (formData.get('notes') as string)?.trim() || null;
+    const photoFile = formData.get('photo') as File | null;
+
+    if (!plotinganId || totalLate <= 0) {
+      return { success: false, error: 'Jumlah pekerja susulan minimal 1 orang (Regular atau Additional).' };
+    }
+
+    let photoUrl: string | null = null;
+    if (photoFile && photoFile.size > 0) {
+      photoUrl = await saveUploadedFile(photoFile);
+    }
+
+    const attendance = await prisma.attendanceIn.findUnique({
+      where: { plotinganId },
+    });
+
+    if (!attendance) {
+      return { success: false, error: 'Belum ada absensi apel awal untuk vendor ini. Silakan input absen masuk terlebih dahulu.' };
+    }
+
+    let existingLate: any[] = [];
+    if (attendance.lateArrivalsJson) {
+      try {
+        existingLate = JSON.parse(attendance.lateArrivalsJson);
+      } catch (e) {}
+    }
+
+    const lateEntry = {
+      id: `late-${Date.now()}`,
+      time,
+      regular,
+      additional,
+      total: totalLate,
+      photoUrl,
+      notes,
+    };
+
+    existingLate.push(lateEntry);
+
+    const updated = await prisma.attendanceIn.update({
+      where: { plotinganId },
+      data: {
+        actualRegular: attendance.actualRegular + regular,
+        actualAdditional: attendance.actualAdditional + additional,
+        actualHeadcount: attendance.actualHeadcount + totalLate,
+        lateArrivalsJson: JSON.stringify(existingLate),
+      },
+    });
+
+    revalidatePath('/');
+    return { success: true, data: updated };
+  } catch (error: any) {
+    console.error('Gagal mencatat pekerja susulan:', error);
+    return { success: false, error: error.message || 'Gagal mencatat pekerja susulan.' };
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 9. FASE 3: MODUL LIVE TUMBANG & KENDALA (REAL-TIME LAPORAN UNDER)
+// Mencatat insiden pekerja sakit/tumbang/izin saat shift sedang berlangsung,
+// lengkap dengan diagnosa, wajib foto surat klinik P3K, dan format share WhatsApp.
+// ----------------------------------------------------------------------------
+export async function getTumbangIncidents(date: string, shiftId?: string) {
+  try {
+    const list = await prisma.tumbangIncident.findMany({
+      where: {
+        date,
+        ...(shiftId && shiftId !== 'ALL' ? { shiftId } : {}),
+      },
+      include: {
+        shift: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return list;
+  } catch (error: any) {
+    console.error('Gagal mengambil data tumbang:', error);
+    return [];
+  }
+}
+
+export async function createTumbangIncident(formData: FormData) {
+  try {
+    const date = formData.get('date') as string;
+    const shiftId = formData.get('shiftId') as string;
+    const division = formData.get('division') as string;
+    const underName = (formData.get('underName') as string)?.trim();
+    const vendorId = (formData.get('vendorId') as string) || null;
+    const vendorName = (formData.get('vendorName') as string)?.trim() || null;
+    const category = (formData.get('category') as string) || 'REGULAR';
+    const time = (formData.get('time') as string)?.trim() || new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const type = (formData.get('type') as string) || 'Sakit / Klinik';
+    const notes = (formData.get('notes') as string)?.trim() || null;
+    const photoFile = formData.get('photo') as File | null;
+
+    if (!date || !shiftId || !division || !underName) {
+      return { success: false, error: 'Harap lengkapi tanggal, shift, divisi, dan nama Under pelapor.' };
+    }
+
+    let photoUrl: string | null = null;
+    if (photoFile && photoFile.size > 0) {
+      photoUrl = await saveUploadedFile(photoFile);
+    }
+
+    if (!photoUrl) {
+      return { success: false, error: 'Foto bukti penanganan medis / surat klinik P3K WAJIB dilampirkan.' };
+    }
+
+    const created = await prisma.tumbangIncident.create({
+      data: {
+        date,
+        shiftId,
+        division,
+        underName,
+        vendorId,
+        vendorName,
+        category,
+        time,
+        type,
+        notes,
+        photoUrl,
+      },
+    });
+
+    revalidatePath('/');
+    return { success: true, data: created };
+  } catch (error: any) {
+    console.error('Gagal mencatat insiden tumbang:', error);
+    return { success: false, error: error.message || 'Gagal mencatat insiden tumbang.' };
+  }
+}
+
+export async function deleteTumbangIncident(id: string) {
+  try {
+    if (!id) return { success: false, error: 'ID insiden tidak valid.' };
+    await prisma.tumbangIncident.delete({ where: { id } });
+    revalidatePath('/');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Gagal menghapus insiden tumbang:', error);
+    return { success: false, error: error.message || 'Gagal menghapus insiden tumbang.' };
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 10. FASE 4 SUB-TAB 2: CHECKOUT KEPULANGAN UNDER LAPANGAN
+// Under Lapangan mengonfirmasi pelepasan anak buah di posnya saat selesai shift,
+// lengkap dengan rincian Reg & Add dan foto checkout barisan pos.
+// ----------------------------------------------------------------------------
+export async function submitUnderCheckout(formData: FormData) {
+  try {
+    const id = formData.get('id') as string;
+    const checkoutRegular = parseInt(formData.get('checkoutRegular') as string, 10) || 0;
+    const checkoutAdditional = parseInt(formData.get('checkoutAdditional') as string, 10) || 0;
+    const checkoutTotal = checkoutRegular + checkoutAdditional;
+    const checkoutNotes = (formData.get('notes') as string)?.trim() || null;
+    const photoFile = formData.get('photo') as File | null;
+    const existingPhotoUrl = formData.get('existingPhotoUrl') as string | null;
+
+    if (!id) return { success: false, error: 'ID penugasan under tidak valid.' };
+
+    let checkoutPhotoUrl = existingPhotoUrl || null;
+    if (photoFile && photoFile.size > 0) {
+      const uploaded = await saveUploadedFile(photoFile);
+      if (uploaded) checkoutPhotoUrl = uploaded;
+    }
+
+    if (!checkoutPhotoUrl) {
+      return { success: false, error: 'Foto bukti checkout barisan pos under WAJIB dilampirkan.' };
+    }
+
+    const updated = await prisma.underAssignment.update({
+      where: { id },
+      data: {
+        checkoutRegular,
+        checkoutAdditional,
+        checkoutTotal,
+        checkoutPhotoUrl,
+        checkoutTime: new Date(),
+        checkoutNotes,
+      },
+    });
+
+    revalidatePath('/');
+    return { success: true, data: updated };
+  } catch (error: any) {
+    console.error('Gagal menyimpan checkout under:', error);
+    return { success: false, error: error.message || 'Gagal menyimpan checkout under.' };
   }
 }

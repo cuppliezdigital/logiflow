@@ -40,6 +40,7 @@ model Shift {
   createdAt        DateTime          @default(now())
   plotingans       Plotingan[]       // Relasi: Satu shift bisa diisi oleh banyak plotingan vendor
   underAssignments UnderAssignment[] // Relasi: Satu shift memiliki banyak penugasan under lapangan
+  tumbangIncidents TumbangIncident[] // Relasi: Insiden pekerja tumbang real-time
 }
 
 // ----------------------------------------------------------------------------
@@ -89,6 +90,9 @@ model AttendanceIn {
   photoInRegularUrl     String?        // Link URL foto thumbnail barisan REGULAR
   photoInAdditionalUrl  String?        // Link URL foto thumbnail barisan ADDITIONAL
   photoInUrl            String?        // Fallback kompatibilitas foto umum
+  
+  // Penyimpanan Data Pekerja Susulan / Telat (JSON Array of { time, regular, additional, photoUrl, notes })
+  lateArrivalsJson      String?        // List kedatangan susulan pekerja vendor
   
   notes                 String?        // Catatan saat serah terima presensi masuk
   createdAt             DateTime       @default(now())
@@ -141,19 +145,56 @@ model AttendanceOut {
 // tanpa memedulikan asal vendor.
 // ----------------------------------------------------------------------------
 model UnderAssignment {
-  id              String   @id @default(cuid())
-  date            String   // Tanggal kerja format YYYY-MM-DD
-  shiftId         String
-  shift           Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  division        String   // BONGKARAN, MUATAN, SORTIR_BODEBEK, SORTIR_SUMATRAAN, SORTIR_JAKARTA, FIFO, REPACK
-  underName       String   // Nama Under / Leader JNT (misal: "Under Budi", "Under 1")
-  regularCount    Int      @default(0) // Jumlah anak Regular yang dipegang
-  additionalCount Int      @default(0) // Jumlah anak Additional yang dipegang
-  totalHeadcount  Int      // regularCount + additionalCount
-  photoUrl        String?  // Foto bukti regu bersama Under
-  notes           String?  // Catatan lapangan
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  date                String    // Tanggal kerja format YYYY-MM-DD
+  shiftId             String
+  shift               Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  division            String    // BONGKARAN, MUATAN, SORTIR_BODEBEK, SORTIR_SUMATRAAN, SORTIR_JAKARTA, FIFO, REPACK
+  underName           String    // Nama Under / Leader JNT (misal: "Under Budi", "Under 1")
+  regularCount        Int       @default(0) // Jumlah anak Regular yang dipegang
+  additionalCount     Int       @default(0) // Jumlah anak Additional yang dipegang
+  totalHeadcount      Int       // regularCount + additionalCount
+  photoUrl            String?   // Foto bukti regu bersama Under (Wajib dengan timestamp)
+  notes               String?   // Catatan lapangan
+  
+  // Rincian Asal Vendor Pasukan (JSON Array of { vendorId, vendorName, regular, additional })
+  vendorBreakdownJson String?
+
+  // Data Checkout Kepulangan Under Lapangan (Fase 4 Sub-Tab 2)
+  checkoutRegular     Int?      // Jumlah anak regular dilepas pulang
+  checkoutAdditional  Int?      // Jumlah anak additional dilepas pulang
+  checkoutTotal       Int?      // Total anak dilepas pulang
+  checkoutPhotoUrl    String?   // Foto checkout regu under
+  checkoutTime        DateTime? // Waktu checkout
+  checkoutNotes       String?   // Catatan checkout
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([date, shiftId])
+}
+
+// ----------------------------------------------------------------------------
+// 7. MODEL TUMBANG INCIDENT (Live Log Pekerja Tumbang / Sakit / Kendala Lapangan)
+// Dicatat langsung oleh Under / Leader saat jam operasional berjalan (Fase 3).
+// Mendukung tombol cepat salin format laporan WhatsApp untuk Supervisor/Manager.
+// ----------------------------------------------------------------------------
+model TumbangIncident {
+  id         String   @id @default(cuid())
+  date       String   // Tanggal kerja format YYYY-MM-DD
+  shiftId    String
+  shift      Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  division   String   // BONGKARAN, MUATAN, SORTIR_BODEBEK, SORTIR_SUMATRAAN, SORTIR_JAKARTA, FIFO, REPACK
+  underName  String   // Nama Under / Leader yang melaporkan
+  vendorId   String?  // ID Vendor pekerja jika ada
+  vendorName String?  // Nama Vendor (misal: PT BAL Logistik)
+  category   String   // REGULAR atau ADDITIONAL
+  time       String   // Jam kejadian keluar (misal: "10:24")
+  type       String   // "Sakit / Klinik", "Cedera Kerja", "Izin Darurat", "Kabur"
+  notes      String?  // Kronologi kejadian & penanganan
+  photoUrl   String?  // Foto surat rujukan klinik P3K / bukti medis
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([date, shiftId])
 }

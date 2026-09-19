@@ -15,19 +15,22 @@ import {
   LogOut, 
   FileSpreadsheet, 
   Warehouse, 
-  Calendar 
+  Calendar,
+  HeartPulse
 } from 'lucide-react';
 
 // Definisi tipe props yang diterima oleh Header
 interface HeaderProps {
-  // Tab yang sedang aktif dipilih oleh pengguna
-  activeTab: 'plotingan' | 'masuk' | 'pulang' | 'laporan';
+  // Tab yang sedang aktif dipilih oleh pengguna (5 Alur Kerja)
+  activeTab: 'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan';
   // Fungsi untuk mengganti tab aktif
-  setActiveTab: (tab: 'plotingan' | 'masuk' | 'pulang' | 'laporan') => void;
+  setActiveTab: (tab: 'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan') => void;
   // Tanggal yang sedang dimonitor (format YYYY-MM-DD)
   selectedDate: string;
   // Fungsi untuk mengubah tanggal monitoring
   setSelectedDate: (date: string) => void;
+  // Jumlah insiden tumbang hari ini untuk badge peringatan
+  tumbangCount?: number;
 }
 
 export default function Header({
@@ -35,6 +38,7 @@ export default function Header({
   setActiveTab,
   selectedDate,
   setSelectedDate,
+  tumbangCount = 0,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-lg border-b border-slate-800">
@@ -81,13 +85,13 @@ export default function Header({
 
         </div>
 
-        {/* BAGIAN BAWAH: 4 Tab Navigasi Sesuai Siklus Kerja Gudang */}
+        {/* BAGIAN BAWAH: 5 Tab Navigasi Sesuai Siklus Kerja Gudang */}
         <div className="flex space-x-1 sm:space-x-2 border-t border-slate-800 pt-1 overflow-x-auto no-scrollbar">
           
           {/* TAB 1: Plotingan (Target Permintaan H-1) */}
           <button
             onClick={() => setActiveTab('plotingan')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'plotingan'
                 ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
@@ -100,7 +104,7 @@ export default function Header({
           {/* TAB 2: Absen Masuk (Serah Terima Pasukan Awal Shift) */}
           <button
             onClick={() => setActiveTab('masuk')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'masuk'
                 ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
@@ -110,30 +114,48 @@ export default function Header({
             2. Absen Masuk
           </button>
 
-          {/* TAB 3: Absen Pulang & Tumbang (Checkout & Audit Selisih/Kabur) */}
+          {/* TAB 3: Live Tumbang & Kendala (🚨 Real-time Incident & Report WA) */}
+          <button
+            onClick={() => setActiveTab('tumbang')}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'tumbang'
+                ? 'border-amber-400 text-amber-300 bg-amber-500/15 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-amber-200 hover:bg-slate-800/50 rounded-t-lg'
+            }`}
+          >
+            <HeartPulse className="w-4 h-4 text-amber-400" />
+            <span>3. Live Tumbang</span>
+            {tumbangCount > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full animate-pulse">
+                {tumbangCount}
+              </span>
+            )}
+          </button>
+
+          {/* TAB 4: Absen Pulang (Checkout Vendor & Under Lapangan) */}
           <button
             onClick={() => setActiveTab('pulang')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'pulang'
                 ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >
             <LogOut className="w-4 h-4" />
-            3. Absen Pulang & Tumbang
+            4. Absen Pulang
           </button>
 
-          {/* TAB 4: Laporan & Rekap Validasi Invoice Excel */}
+          {/* TAB 5: Laporan & Rekap Validasi Invoice Excel */}
           <button
             onClick={() => setActiveTab('laporan')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'laporan'
                 ? 'border-sky-400 text-sky-400 bg-sky-500/10 rounded-t-lg'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            4. Laporan
+            5. Laporan
           </button>
 
         </div>

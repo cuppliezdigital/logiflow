@@ -1,23 +1,22 @@
 'use client';
 
 // ============================================================================
-// KOMPONEN TAB 3: ABSEN PULANG, TUMBANG & AUDIT INTEGRITAS PER BAGIAN GUDANG
-// Fitur Lengkap:
-// 1. 1 Kartu Terpadu per Vendor per Shift dengan rincian Regular & Additional.
-// 2. Input Kepulangan Utuh & Tumbang dipisah untuk Regular dan Additional.
-// 3. Multi-Foto Dinamis per Bagian Gudang untuk Checkout Kepulangan:
-//    - Tombol "+ Tambah Bagian" untuk Checkout Regular & Additional.
-//    - Quick Chips pilihan bagian (Bongkar, Muat, Sortir, Repack, FIFO) + Input manual.
-// 4. Validasi Ketat Wajib Foto (Strict Validation):
-//    - Jika ada orang pulang Regular > 0, WAJIB lampirkan foto checkout Regular.
-//    - Jika ada orang pulang Additional > 0, WAJIB lampirkan foto checkout Additional.
-//    - Jika ada orang tumbang > 0, WAJIB lampirkan foto surat dokter / klinik P3K.
-//    - Tombol submit otomatis terkunci (DISABLED) jika syarat foto belum dipenuhi!
-// 5. Audit Integritas Otomatis: Deteksi selisih kabur (Masuk vs Pulang + Tumbang).
-// 6. Galeri Foto Checkout & Lightbox Fullscreen Preview pada setiap kartu.
+// KOMPONEN FASE 4: ABSEN PULANG & REKONSILIASI KEPULANGAN TERPADU (2 SUB-TAB)
+// Alur Kerja Lapangan:
+// 1. Sub-Tab 1: Serah Terima Kepulangan Vendor
+//    - Vendor mengantar anak-anak pulang, menghitung realisasi pulang Reg & Add.
+//    - Terhubung otomatis dengan data Live Tumbang (Fase 3): pekerja sakit/izin
+//      langsung terdata tanpa perlu input ulang atau dicurangi vendor.
+//    - Wajib melampirkan foto apel kepulangan kontingen vendor.
+// 2. Sub-Tab 2: Kepulangan Regu Under Lapangan (Checkout Regu Pos Divisi)
+//    - Under di Bongkar, Muat, Sortir (A/B/C), FIFO, Repack mengonfirmasi
+//      pelepasan anak-anak yang dipegangnya saat shift berakhir.
+//    - Wajib melampirkan foto apel kepulangan regu bersama Under.
+// 3. Live Audit Rekonsiliasi Kepulangan:
+//    - Membandingkan Total Pulang Vendor vs Total Pulang Under Lapangan.
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   LogOut, 
   Camera, 
@@ -26,340 +25,172 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   AlertCircle, 
-  X,
-  ShieldCheck,
-  HeartPulse,
-  UserX,
-  Sun,
-  Moon,
-  Layers,
-  Plus,
-  Trash2,
-  Lock,
-  ZoomIn,
-  Image as ImageIcon
+  X, 
+  ShieldCheck, 
+  HeartPulse, 
+  UserX, 
+  Sun, 
+  Moon, 
+  Layers, 
+  Plus, 
+  Trash2, 
+  Lock, 
+  ZoomIn, 
+  Image as ImageIcon,
+  MapPin,
+  Truck,
+  Box,
+  Package,
+  Edit2,
+  Check
 } from 'lucide-react';
-import { submitAbsenPulang } from '@/app/actions';
+import { 
+  submitAbsenPulang, 
+  getUnderAssignments, 
+  submitUnderCheckout 
+} from '@/app/actions';
 import { compressImage } from '@/lib/compressImage';
-
-// Daftar opsi preset area kerja / bagian gudang standar
-const SECTION_PRESETS = ['Bongkar', 'Muat', 'Sortir', 'Repack', 'FIFO'];
-
-// Struktur data untuk slot foto checkout kepulangan
-interface SectionPhotoSlot {
-  id: string;                 // ID unik slot
-  section: string;            // Nama bagian gudang
-  file: File | null;          // File baru yang diunggah
-  preview: string | null;     // Object URL atau URL pratinjau gambar
-  existingUrl?: string | null;// URL foto lama jika mode edit
-}
-
-// ============================================================================
-// FUNGSI PEMBANTU: FORMAT WAKTU 24 JAM STANDAR LOGISTIK (00:00 - 23:59)
-// Menghilangkan format AM/PM bawaan browser dan memastikan waktu selalu 24 jam.
-// ============================================================================
-
-// Import dan re-export fungsi utilitas waktu 24 jam dari @/lib/timeUtils
+import { getShortVendorName } from '@/lib/vendorMapping';
+import { DIVISION_DEFINITIONS } from '@/components/AbsenMasukTab';
 import { getCurrent24HourTime, convertTo24Hour } from '@/lib/timeUtils';
-export { getCurrent24HourTime, convertTo24Hour };
 
-// Struktur data untuk multi-kejadian pekerja tumbang / izin di jam kerja
-// Mendukung pencatatan lebih dari 1 orang dengan jam keluar berbeda dan foto bukti mandiri
-interface TumbangIncidentSlot {
-  id: string;                         // ID unik lokal
-  category: 'REGULAR' | 'ADDITIONAL'; // Status pasukan
-  time: string;                       // Jam keluar / izin (misal: "10:30")
-  type: string;                       // Jenis kendala ("Sakit / Klinik", "Izin Darurat", dll)
-  notes: string;                      // Catatan detail kendala
-  file: File | null;                  // File foto bukti mandiri baru
-  preview: string | null;             // Pratinjau gambar
-  existingUrl?: string | null;        // URL gambar lama dari server
+// Struktur slot foto checkout vendor
+interface SectionPhotoSlot {
+  id: string;
+  section: string;
+  file: File | null;
+  preview: string | null;
+  existingUrl?: string | null;
 }
 
-// Definisi props untuk komponen AbsenPulangTab
+// Struktur data kejadian tumbang
+interface TumbangIncidentSlot {
+  id: string;
+  category: 'REGULAR' | 'ADDITIONAL';
+  time: string;
+  type: string;
+  notes: string;
+  file: File | null;
+  preview: string | null;
+  existingUrl?: string | null;
+}
+
 interface AbsenPulangTabProps {
-  plotingans: any[];          // Seluruh data plotingan pada tanggal terpilih
-  selectedDate: string;       // Tanggal aktif saat ini (YYYY-MM-DD)
-  onRefresh: () => void;      // Callback me-refresh data setelah submit
+  plotingans: any[];
+  shifts?: any[];
+  tumbangIncidents?: any[];
+  selectedDate: string;
+  onRefresh: () => void;
 }
 
 export default function AbsenPulangTab({
   plotingans,
+  shifts = [],
+  tumbangIncidents = [],
   selectedDate,
   onRefresh,
 }: AbsenPulangTabProps) {
   // --------------------------------------------------------------------------
-  // STATE MANAGEMENT
+  // 1. STATE NAVIGASI SUB-TAB
+  // --------------------------------------------------------------------------
+  const [activeSubTab, setActiveSubTab] = useState<'VENDOR' | 'UNDER'>('VENDOR');
+
+  // Filter shift Under
+  const [underShiftFilter, setUnderShiftFilter] = useState<string>('ALL');
+  const [underAssignments, setUnderAssignments] = useState<any[]>([]);
+  const [loadingUnder, setLoadingUnder] = useState<boolean>(false);
+
+  // --------------------------------------------------------------------------
+  // 2. STATE MODAL CHECKOUT VENDOR (SUB-TAB 1)
   // --------------------------------------------------------------------------
   const [selectedPlotingan, setSelectedPlotingan] = useState<any>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // State orang pulang utuh (terpisah Reg & Add)
+  const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   const [pulangRegular, setPulangRegular] = useState<number>(0);
   const [pulangAdditional, setPulangAdditional] = useState<number>(0);
-
-  // State orang tumbang di jam kerja (terpisah Reg & Add)
   const [tumbangRegular, setTumbangRegular] = useState<number>(0);
   const [tumbangAdditional, setTumbangAdditional] = useState<number>(0);
   const [tumbangNotes, setTumbangNotes] = useState('');
-
-  // State multi-kejadian pekerja tumbang/izin (beda jam & beda foto)
-  const [tumbangIncidents, setTumbangIncidents] = useState<TumbangIncidentSlot[]>([]);
-
-  // State dynamic slot foto checkout per bagian untuk Pasukan Regular
+  const [vendorTumbangList, setVendorTumbangList] = useState<TumbangIncidentSlot[]>([]);
   const [pulangRegPhotoSlots, setPulangRegPhotoSlots] = useState<SectionPhotoSlot[]>([]);
-
-  // State dynamic slot foto checkout per bagian untuk Pasukan Additional
   const [pulangAddPhotoSlots, setPulangAddPhotoSlots] = useState<SectionPhotoSlot[]>([]);
+  const [isSubmittingVendor, setIsSubmittingVendor] = useState(false);
 
-  // State upload foto bukti surat dokter / klinik P3K (fallback legacy)
-  const [photoTumbangPreview, setPhotoTumbangPreview] = useState<string | null>(null);
-  const [photoTumbangFile, setPhotoTumbangFile] = useState<File | null>(null);
-  const [existingPhotoTumbang, setExistingPhotoTumbang] = useState<string | null>(null);
+  // --------------------------------------------------------------------------
+  // 3. STATE MODAL CHECKOUT UNDER LAPANGAN (SUB-TAB 2)
+  // --------------------------------------------------------------------------
+  const [selectedUnder, setSelectedUnder] = useState<any | null>(null);
+  const [isUnderModalOpen, setIsUnderModalOpen] = useState(false);
+  const [underCheckoutReg, setUnderCheckoutReg] = useState<number>(0);
+  const [underCheckoutAdd, setUnderCheckoutAdd] = useState<number>(0);
+  const [underCheckoutNotes, setUnderCheckoutNotes] = useState<string>('');
+  const [underCheckoutPhotoFile, setUnderCheckoutPhotoFile] = useState<File | null>(null);
+  const [underCheckoutPhotoPreview, setUnderCheckoutPhotoPreview] = useState<string | null>(null);
+  const [isSubmittingUnder, setIsSubmittingUnder] = useState(false);
 
-  // State loading status submit
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // State lightbox modal fullscreen
+  // --------------------------------------------------------------------------
+  // 4. LIGHTBOX ZOOM MODAL
+  // --------------------------------------------------------------------------
   const [lightboxPhoto, setLightboxPhoto] = useState<{ url: string; title: string } | null>(null);
 
   // --------------------------------------------------------------------------
-  // HELPER PENGELOLAAN SLOT FOTO DINAMIS CHECKOUT
+  // 5. FETCH DATA UNDER ASSIGNMENTS
   // --------------------------------------------------------------------------
-
-  // Tambah slot foto checkout Regular (bisa insert di bawah slot tertentu atau di akhir)
-  const handleAddPulangRegSlot = (insertIndex?: number) => {
-    const nextSection = SECTION_PRESETS[pulangRegPhotoSlots.length % SECTION_PRESETS.length] || 'Bongkar';
-    const newSlot: SectionPhotoSlot = {
-      id: `out-reg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      section: nextSection,
-      file: null,
-      preview: null,
-    };
-    setPulangRegPhotoSlots((prev) => {
-      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
-        const updated = [...prev];
-        updated.splice(insertIndex + 1, 0, newSlot);
-        return updated;
-      }
-      return [...prev, newSlot];
-    });
-  };
-
-  // Hapus slot foto checkout Regular
-  const handleRemovePulangRegSlot = (id: string) => {
-    setPulangRegPhotoSlots((prev) => prev.filter((slot) => slot.id !== id));
-  };
-
-  // Ubah nama bagian checkout Regular
-  const handleUpdatePulangRegSection = (id: string, sectionName: string) => {
-    setPulangRegPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, section: sectionName } : slot))
-    );
-  };
-
-  // Unggah file foto checkout Regular (dengan kompresi otomatis di browser)
-  const handlePulangRegFileChange = async (id: string, file: File | null) => {
-    if (!file) return;
-    const compressed = await compressImage(file);
-    const previewUrl = URL.createObjectURL(compressed);
-    setPulangRegPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
-    );
-  };
-
-  // Tambah slot foto checkout Additional (bisa insert di bawah slot tertentu atau di akhir)
-  const handleAddPulangAddSlot = (insertIndex?: number) => {
-    const nextSection = SECTION_PRESETS[pulangAddPhotoSlots.length % SECTION_PRESETS.length] || 'Sortir';
-    const newSlot: SectionPhotoSlot = {
-      id: `out-add-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      section: nextSection,
-      file: null,
-      preview: null,
-    };
-    setPulangAddPhotoSlots((prev) => {
-      if (insertIndex !== undefined && insertIndex >= 0 && insertIndex < prev.length) {
-        const updated = [...prev];
-        updated.splice(insertIndex + 1, 0, newSlot);
-        return updated;
-      }
-      return [...prev, newSlot];
-    });
-  };
-
-  // Hapus slot foto checkout Additional
-  const handleRemovePulangAddSlot = (id: string) => {
-    setPulangAddPhotoSlots((prev) => prev.filter((slot) => slot.id !== id));
-  };
-
-  // Ubah nama bagian checkout Additional
-  const handleUpdatePulangAddSection = (id: string, sectionName: string) => {
-    setPulangAddPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, section: sectionName } : slot))
-    );
-  };
-
-  // Unggah file foto checkout Additional (dengan kompresi otomatis di browser)
-  const handlePulangAddFileChange = async (id: string, file: File | null) => {
-    if (!file) return;
-    const compressed = await compressImage(file);
-    const previewUrl = URL.createObjectURL(compressed);
-    setPulangAddPhotoSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
-    );
-  };
-
-  // Unggah foto surat klinik / P3K untuk pekerja tumbang (dengan kompresi otomatis di browser)
-  const handlePhotoTumbangChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const compressed = await compressImage(file);
-      setPhotoTumbangFile(compressed);
-      setPhotoTumbangPreview(URL.createObjectURL(compressed));
+  const loadUnderAssignmentsData = useCallback(async () => {
+    try {
+      setLoadingUnder(true);
+      const data = await getUnderAssignments(selectedDate);
+      setUnderAssignments(data);
+    } catch (err) {
+      console.error('Gagal mengambil penugasan under:', err);
+    } finally {
+      setLoadingUnder(false);
     }
-  };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadUnderAssignmentsData();
+  }, [loadUnderAssignmentsData]);
+
+  // Master shifts deduplikasi
+  const rawShifts = shifts && shifts.length > 0 ? shifts : [
+    { id: 'pagi', name: 'Shift Pagi' },
+    { id: 'malam', name: 'Shift Malam' },
+  ];
+  const availableShifts = rawShifts.filter((s, idx, arr) =>
+    idx === arr.findIndex((t) => t.name.toLowerCase().trim() === s.name.toLowerCase().trim())
+  );
 
   // --------------------------------------------------------------------------
-  // HELPER PENGELOLAAN MULTI-KEJADIAN ORANG TUMBANG / IZIN DI JAM KERJA
+  // 6. EVENT HANDLER CHECKOUT VENDOR (SUB-TAB 1)
   // --------------------------------------------------------------------------
+  const handleOpenVendorModal = (plot: any) => {
+    setSelectedPlotingan(plot);
+    const existingOut = plot.attendanceIn?.attendanceOut;
+    const inReg = plot.attendanceIn ? (plot.attendanceIn.actualRegular ?? plot.attendanceIn.actualHeadcount) : 0;
+    const inAdd = plot.attendanceIn?.actualAdditional ?? 0;
 
-  // Helper sinkronisasi jumlah Tumbang & Pulang dari daftar kejadian
-  const syncCountsFromIncidents = (list: TumbangIncidentSlot[], inReg: number, inAdd: number) => {
-    const regCount = list.filter((i) => i.category === 'REGULAR').length;
-    const addCount = list.filter((i) => i.category === 'ADDITIONAL').length;
-    setTumbangRegular(regCount);
-    setTumbangAdditional(addCount);
-    setPulangRegular(Math.max(0, inReg - regCount));
-    setPulangAdditional(Math.max(0, inAdd - addCount));
-  };
-
-  // Tambah kejadian tumbang baru (otomatis set waktu saat ini dalam format 24 jam)
-  const handleAddIncident = (forcedCat?: 'REGULAR' | 'ADDITIONAL') => {
-    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
-    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
-    const defaultCat = forcedCat || (inAdd > 0 && tumbangAdditional < inAdd ? 'ADDITIONAL' : 'REGULAR');
-    // Format 24 jam murni tanpa AM/PM (HH:mm)
-    const nowTime = getCurrent24HourTime();
-    const newInc: TumbangIncidentSlot = {
-      id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      category: defaultCat,
-      time: nowTime,
-      type: 'Sakit / Klinik',
-      notes: '',
-      file: null,
-      preview: null,
-    };
-    const updated = [...tumbangIncidents, newInc];
-    setTumbangIncidents(updated);
-    syncCountsFromIncidents(updated, inReg, inAdd);
-  };
-
-  // Hapus satu kejadian tumbang
-  const handleRemoveIncident = (id: string) => {
-    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
-    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
-    const updated = tumbangIncidents.filter((i) => i.id !== id);
-    setTumbangIncidents(updated);
-    syncCountsFromIncidents(updated, inReg, inAdd);
-  };
-
-  // Update nilai atribut dalam kejadian tumbang
-  const handleUpdateIncident = (id: string, field: keyof TumbangIncidentSlot, value: any) => {
-    const inReg = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
-    const inAdd = selectedPlotingan?.attendanceIn?.actualAdditional ?? 0;
-    const updated = tumbangIncidents.map((inc) => (inc.id === id ? { ...inc, [field]: value } : inc));
-    setTumbangIncidents(updated);
-    if (field === 'category') {
-      syncCountsFromIncidents(updated, inReg, inAdd);
-    }
-  };
-
-  // Unggah foto khusus untuk 1 kejadian tumbang
-  const handleIncidentFileChange = async (id: string, file: File) => {
-    const compressed = await compressImage(file);
-    const previewUrl = URL.createObjectURL(compressed);
-    setTumbangIncidents((prev) =>
-      prev.map((inc) => (inc.id === id ? { ...inc, file: compressed, preview: previewUrl } : inc))
+    // Ambil insiden tumbang hari ini untuk vendor ini dari Tab 3 Live Tumbang
+    const relatedIncidents = tumbangIncidents.filter((inc) => 
+      inc.shiftId === plot.shiftId && (inc.vendorId === plot.vendorId || inc.vendorName?.toLowerCase() === plot.vendor.name.toLowerCase())
     );
-  };
 
-  // Hapus foto dari kejadian tumbang
-  const handleRemoveIncidentPhoto = (id: string) => {
-    setTumbangIncidents((prev) =>
-      prev.map((inc) => (inc.id === id ? { ...inc, file: null, preview: null, existingUrl: null } : inc))
-    );
-  };
+    const relatedRegTumbang = relatedIncidents.filter(i => i.category === 'REGULAR').length;
+    const relatedAddTumbang = relatedIncidents.filter(i => i.category === 'ADDITIONAL').length;
 
-  // --------------------------------------------------------------------------
-  // BUKA MODAL DAN LOAD DATA SEBELUMNYA
-  // --------------------------------------------------------------------------
-  const handleOpenModal = (plotingan: any) => {
-    setSelectedPlotingan(plotingan);
-
-    const existingOut = plotingan.attendanceIn?.attendanceOut;
-    const inReg = plotingan.attendanceIn ? (plotingan.attendanceIn.actualRegular ?? plotingan.attendanceIn.actualHeadcount) : 0;
-    const inAdd = plotingan.attendanceIn?.actualAdditional ?? 0;
-
-    const currentTumbangReg = existingOut ? existingOut.tumbangRegular : 0;
-    const currentTumbangAdd = existingOut ? existingOut.tumbangAdditional : 0;
+    const currentTumbangReg = existingOut ? existingOut.tumbangRegular : relatedRegTumbang;
+    const currentTumbangAdd = existingOut ? existingOut.tumbangAdditional : relatedAddTumbang;
 
     setTumbangRegular(currentTumbangReg);
     setTumbangAdditional(currentTumbangAdd);
-    setTumbangNotes(existingOut?.tumbangNotes || '');
+    setTumbangNotes(existingOut?.tumbangNotes || (relatedIncidents.length > 0 ? `Otomatis sinkron ${relatedIncidents.length} insiden dari Tab Live Tumbang` : ''));
 
-    // Default pulang: Masuk - Tumbang (terkunci seimbang)
     if (existingOut) {
       setPulangRegular(existingOut.pulangRegular ?? existingOut.pulangHeadcount ?? Math.max(0, inReg - currentTumbangReg));
       setPulangAdditional(existingOut.pulangAdditional ?? Math.max(0, inAdd - currentTumbangAdd));
     } else {
-      setPulangRegular(inReg);
-      setPulangAdditional(inAdd);
+      setPulangRegular(Math.max(0, inReg - currentTumbangReg));
+      setPulangAdditional(Math.max(0, inAdd - currentTumbangAdd));
     }
-
-    // Inisialisasi foto tumbang tunggal (legacy)
-    if (existingOut?.photoTumbangUrl) {
-      setPhotoTumbangPreview(existingOut.photoTumbangUrl);
-      setExistingPhotoTumbang(existingOut.photoTumbangUrl);
-    } else {
-      setPhotoTumbangPreview(null);
-      setExistingPhotoTumbang(null);
-    }
-    setPhotoTumbangFile(null);
-
-    // Inisialisasi daftar multi-kejadian tumbang dari database
-    let parsedIncidents: TumbangIncidentSlot[] = [];
-    if (existingOut?.tumbangNotes) {
-      try {
-        const arr = JSON.parse(existingOut.tumbangNotes);
-        if (Array.isArray(arr) && arr.length > 0) {
-          parsedIncidents = arr.map((item: any, idx: number) => ({
-            id: `init-inc-${idx}-${Date.now()}`,
-            category: item.category || 'REGULAR',
-            // Konversi ke format 24 jam murni tanpa AM/PM
-            time: convertTo24Hour(item.time),
-            type: item.type || 'Sakit / Klinik',
-            notes: item.notes || '',
-            file: null,
-            preview: item.url || null,
-            existingUrl: item.url || null,
-          }));
-        }
-      } catch (e) {}
-    }
-
-    if (parsedIncidents.length === 0 && existingOut && (existingOut.tumbangHeadcount > 0 || existingOut.photoTumbangUrl)) {
-      parsedIncidents = [{
-        id: `init-inc-legacy-${Date.now()}`,
-        category: existingOut.tumbangRegular > 0 ? 'REGULAR' : 'ADDITIONAL',
-        time: getCurrent24HourTime(),
-        type: 'Sakit / Kendala',
-        notes: existingOut.tumbangNotes || '',
-        file: null,
-        preview: existingOut.photoTumbangUrl || null,
-        existingUrl: existingOut.photoTumbangUrl || null,
-      }];
-    }
-    setTumbangIncidents(parsedIncidents);
 
     // Inisialisasi slot foto checkout REGULAR
     let parsedRegSlots: SectionPhotoSlot[] = [];
@@ -369,31 +200,27 @@ export default function AbsenPulangTab({
         if (Array.isArray(arr) && arr.length > 0) {
           parsedRegSlots = arr.map((item: any, idx: number) => ({
             id: `init-out-reg-${idx}-${Date.now()}`,
-            section: item.section || 'Bongkar',
+            section: 'Foto Full Vendor',
             file: null,
             preview: item.url,
             existingUrl: item.url,
           }));
         }
-      } catch (e) {
-        console.error('Gagal parse photosPulangRegularJson:', e);
-      }
+      } catch (e) {}
     }
-
     if (parsedRegSlots.length === 0 && (existingOut?.photoPulangRegularUrl || existingOut?.photoPulangUrl)) {
       parsedRegSlots = [{
         id: `init-out-reg-0-${Date.now()}`,
-        section: 'Bongkar',
+        section: 'Foto Full Vendor',
         file: null,
         preview: existingOut.photoPulangRegularUrl || existingOut.photoPulangUrl,
         existingUrl: existingOut.photoPulangRegularUrl || existingOut.photoPulangUrl,
       }];
     }
-
     if (parsedRegSlots.length === 0 && inReg > 0) {
       parsedRegSlots = [{
         id: `init-out-reg-empty-${Date.now()}`,
-        section: 'Bongkar',
+        section: 'Foto Full Vendor',
         file: null,
         preview: null,
       }];
@@ -408,85 +235,81 @@ export default function AbsenPulangTab({
         if (Array.isArray(arr) && arr.length > 0) {
           parsedAddSlots = arr.map((item: any, idx: number) => ({
             id: `init-out-add-${idx}-${Date.now()}`,
-            section: item.section || 'Sortir',
+            section: 'Foto Full Vendor',
             file: null,
             preview: item.url,
             existingUrl: item.url,
           }));
         }
-      } catch (e) {
-        console.error('Gagal parse photosPulangAdditionalJson:', e);
-      }
+      } catch (e) {}
     }
-
     if (parsedAddSlots.length === 0 && existingOut?.photoPulangAdditionalUrl) {
       parsedAddSlots = [{
         id: `init-out-add-0-${Date.now()}`,
-        section: 'Sortir',
+        section: 'Foto Full Vendor',
         file: null,
         preview: existingOut.photoPulangAdditionalUrl,
         existingUrl: existingOut.photoPulangAdditionalUrl,
       }];
     }
-
     if (parsedAddSlots.length === 0 && inAdd > 0) {
       parsedAddSlots = [{
         id: `init-out-add-empty-${Date.now()}`,
-        section: 'Sortir',
+        section: 'Foto Full Vendor',
         file: null,
         preview: null,
       }];
     }
     setPulangAddPhotoSlots(parsedAddSlots);
 
-    setIsModalOpen(true);
+    setIsVendorModalOpen(true);
   };
 
-  // --------------------------------------------------------------------------
-  // LOGIKA AUDIT INTEGRITAS & VALIDASI KETAT WAJIB FOTO
-  // --------------------------------------------------------------------------
-  const inRegModal = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount) : 0;
-  const inAddModal = selectedPlotingan?.attendanceIn ? (selectedPlotingan.attendanceIn.actualAdditional ?? 0) : 0;
-  const inTotalModal = inRegModal + inAddModal;
+  const handleAddPulangRegSlot = () => {
+    setPulangRegPhotoSlots((prev) => [
+      ...prev,
+      { id: `out-reg-${Date.now()}`, section: 'Foto Full Vendor', file: null, preview: null }
+    ]);
+  };
 
-  // Audit selisih pekerja kabur
-  const selisihRegModal = inRegModal - (pulangRegular + tumbangRegular);
-  const selisihAddModal = inAddModal - (pulangAdditional + tumbangAdditional);
-  const selisihTotalModal = selisihRegModal + selisihAddModal;
-  const isBalancedModal = selisihTotalModal === 0;
+  const handleRemovePulangRegSlot = (id: string) => {
+    setPulangRegPhotoSlots((prev) => prev.filter((s) => s.id !== id));
+  };
 
-  const totalTumbangModal = tumbangRegular + tumbangAdditional;
+  const handlePulangRegFileChange = async (id: string, file: File | null) => {
+    if (!file) return;
+    const compressed = await compressImage(file);
+    const previewUrl = URL.createObjectURL(compressed);
+    setPulangRegPhotoSlots((prev) =>
+      prev.map((slot) => (slot.id === id ? { ...slot, file: compressed, preview: previewUrl } : slot))
+    );
+  };
 
-  // Validasi ketat wajib foto checkout untuk Pasukan Regular dan Additional
-  const validPulangRegPhotos = pulangRegPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
-  const validPulangAddPhotos = pulangAddPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
-  // Validasi foto bukti tumbang: jika menggunakan multi-kejadian, setiap kejadian wajib melampirkan foto bukti
-  const hasValidTumbangPhoto =
-    totalTumbangModal === 0 ||
-    (tumbangIncidents.length > 0
-      ? tumbangIncidents.every((inc) => !!inc.file || !!inc.existingUrl)
-      : !!photoTumbangFile || !!existingPhotoTumbang);
-
-  const isPulangRegPhotoMissing = pulangRegular > 0 && validPulangRegPhotos.length === 0;
-  const isPulangAddPhotoMissing = pulangAdditional > 0 && validPulangAddPhotos.length === 0;
-  const isTumbangPhotoMissing = totalTumbangModal > 0 && !hasValidTumbangPhoto;
-
-  // Syarat submit checkout aktif (seimbang & semua foto wajib lengkap)
-  const canSubmit = isBalancedModal && !isPulangRegPhotoMissing && !isPulangAddPhotoMissing && !isTumbangPhotoMissing;
-
-  // --------------------------------------------------------------------------
-  // SUBMIT FORM KE SERVER ACTION
-  // --------------------------------------------------------------------------
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleVendorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlotingan?.attendanceIn?.id) return;
 
-    if (!canSubmit) {
-      alert('Harap lengkapi seluruh foto checkout kepulangan dan bukti surat/faskes orang tumbang sebelum menyimpan!');
+    const inReg = selectedPlotingan.attendanceIn.actualRegular ?? selectedPlotingan.attendanceIn.actualHeadcount;
+    const inAdd = selectedPlotingan.attendanceIn.actualAdditional ?? 0;
+
+    const selisihReg = inReg - (pulangRegular + tumbangRegular);
+    const selisihAdd = inAdd - (pulangAdditional + tumbangAdditional);
+    const selisihTotal = selisihReg + selisihAdd;
+
+    if (selisihTotal !== 0) {
+      alert(`Jumlah kepulangan tidak klop! Masuk (${inReg + inAdd}) ≠ Pulang (${pulangRegular + pulangAdditional}) + Tumbang (${tumbangRegular + tumbangAdditional}). Selisih: ${selisihTotal} orang.`);
       return;
     }
 
-    setIsSubmitting(true);
+    const validRegPhotos = pulangRegPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
+    const validAddPhotos = pulangAddPhotoSlots.filter((s) => !!s.file || !!s.existingUrl);
+
+    if (pulangRegular > 0 && validRegPhotos.length === 0) {
+      alert('Wajib melampirkan minimal 1 foto apel kepulangan kontingen Regular!');
+      return;
+    }
+
+    setIsSubmittingVendor(true);
     try {
       const formData = new FormData();
       formData.append('attendanceInId', selectedPlotingan.attendanceIn.id);
@@ -496,1123 +319,901 @@ export default function AbsenPulangTab({
       formData.append('tumbangAdditional', tumbangAdditional.toString());
       formData.append('tumbangNotes', tumbangNotes);
 
-      // Kirim multi-foto checkout Pasukan Regular
-      formData.append('photoPulangRegular_count', validPulangRegPhotos.length.toString());
-      validPulangRegPhotos.forEach((slot, index) => {
-        formData.append(`photoPulangRegular_section_${index}`, slot.section.trim() || 'Bongkar');
-        if (slot.file) {
-          formData.append(`photoPulangRegular_file_${index}`, slot.file);
-        }
-        if (slot.existingUrl) {
-          formData.append(`photoPulangRegular_existing_${index}`, slot.existingUrl);
-        }
+      formData.append('photoPulangRegular_count', validRegPhotos.length.toString());
+      validRegPhotos.forEach((slot, index) => {
+        formData.append(`photoPulangRegular_section_${index}`, slot.section);
+        if (slot.file) formData.append(`photoPulangRegular_file_${index}`, slot.file);
+        if (slot.existingUrl) formData.append(`photoPulangRegular_existing_${index}`, slot.existingUrl);
       });
 
-      // Kirim multi-foto checkout Pasukan Additional
-      formData.append('photoPulangAdditional_count', validPulangAddPhotos.length.toString());
-      validPulangAddPhotos.forEach((slot, index) => {
-        formData.append(`photoPulangAdditional_section_${index}`, slot.section.trim() || 'Sortir');
-        if (slot.file) {
-          formData.append(`photoPulangAdditional_file_${index}`, slot.file);
-        }
-        if (slot.existingUrl) {
-          formData.append(`photoPulangAdditional_existing_${index}`, slot.existingUrl);
-        }
+      formData.append('photoPulangAdditional_count', validAddPhotos.length.toString());
+      validAddPhotos.forEach((slot, index) => {
+        formData.append(`photoPulangAdditional_section_${index}`, slot.section);
+        if (slot.file) formData.append(`photoPulangAdditional_file_${index}`, slot.file);
+        if (slot.existingUrl) formData.append(`photoPulangAdditional_existing_${index}`, slot.existingUrl);
       });
-
-      // Kirim multi-kejadian tumbang & foto bukti mandiri per orang
-      formData.append('photoTumbang_count', tumbangIncidents.length.toString());
-      tumbangIncidents.forEach((inc, index) => {
-        formData.append(`photoTumbang_category_${index}`, inc.category);
-        formData.append(`photoTumbang_time_${index}`, inc.time || '');
-        formData.append(`photoTumbang_type_${index}`, inc.type || 'Sakit');
-        formData.append(`photoTumbang_notes_${index}`, inc.notes || '');
-        if (inc.file) {
-          formData.append(`photoTumbang_file_${index}`, inc.file);
-        }
-        if (inc.existingUrl) {
-          formData.append(`photoTumbang_existing_${index}`, inc.existingUrl);
-        }
-      });
-
-      // Fallback foto bukti tunggal jika legacy
-      if (photoTumbangFile) {
-        formData.append('photoTumbang', photoTumbangFile);
-      }
-      if (existingPhotoTumbang) {
-        formData.append('photoTumbang_existing', existingPhotoTumbang);
-      }
 
       const res = await submitAbsenPulang(formData);
-      if (!res.success) {
-        alert(res.error || 'Gagal menyimpan absensi pulang.');
-        return;
+      if (res.success) {
+        setIsVendorModalOpen(false);
+        onRefresh();
+      } else {
+        alert(res.error || 'Gagal menyimpan absensi pulang vendor.');
       }
-
-      setIsModalOpen(false);
-      onRefresh();
     } catch (err: any) {
-      alert(err.message || 'Gagal menyimpan absensi pulang.');
+      alert('Terjadi kesalahan: ' + err.message);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingVendor(false);
     }
   };
+
+  // --------------------------------------------------------------------------
+  // 7. EVENT HANDLER CHECKOUT UNDER LAPANGAN (SUB-TAB 2)
+  // --------------------------------------------------------------------------
+  const handleOpenUnderModal = (under: any) => {
+    setSelectedUnder(under);
+    setUnderCheckoutReg(under.checkoutRegular ?? under.regularCount);
+    setUnderCheckoutAdd(under.checkoutAdditional ?? under.additionalCount);
+    setUnderCheckoutNotes(under.checkoutNotes || '');
+    setUnderCheckoutPhotoFile(null);
+    setUnderCheckoutPhotoPreview(under.checkoutPhotoUrl || null);
+    setIsUnderModalOpen(true);
+  };
+
+  const handleUnderPhotoChange = async (file: File | null) => {
+    if (!file) return;
+    const compressed = await compressImage(file);
+    setUnderCheckoutPhotoFile(compressed);
+    setUnderCheckoutPhotoPreview(URL.createObjectURL(compressed));
+  };
+
+  const handleUnderCheckoutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUnder?.id) return;
+
+    if (!underCheckoutPhotoFile && !selectedUnder.checkoutPhotoUrl) {
+      alert('Foto bukti apel kepulangan regu bersama Under WAJIB dilampirkan!');
+      return;
+    }
+
+    setIsSubmittingUnder(true);
+    try {
+      const fd = new FormData();
+      fd.append('id', selectedUnder.id);
+      fd.append('checkoutRegular', underCheckoutReg.toString());
+      fd.append('checkoutAdditional', underCheckoutAdd.toString());
+      if (underCheckoutNotes.trim()) fd.append('notes', underCheckoutNotes.trim());
+      if (underCheckoutPhotoFile) fd.append('photo', underCheckoutPhotoFile);
+      else if (selectedUnder.checkoutPhotoUrl) fd.append('existingPhotoUrl', selectedUnder.checkoutPhotoUrl);
+
+      const res = await submitUnderCheckout(fd);
+      if (res.success) {
+        await loadUnderAssignmentsData();
+        setIsUnderModalOpen(false);
+        onRefresh();
+      } else {
+        alert('Gagal checkout under: ' + (res.error || 'Terjadi kesalahan'));
+      }
+    } catch (err: any) {
+      alert('Gagal simpan checkout under: ' + err.message);
+    } finally {
+      setIsSubmittingUnder(false);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // 8. AUDIT REKONSILIASI KEPULANGAN (TOTAL PULANG VENDOR VS UNDER)
+  // --------------------------------------------------------------------------
+  const filteredPlotingans = underShiftFilter === 'ALL'
+    ? plotingans
+    : plotingans.filter((p) => p.shiftId === underShiftFilter);
+
+  const totalVendorPulangReg = filteredPlotingans.reduce((sum, p) => sum + (p.attendanceIn?.attendanceOut?.pulangRegular ?? p.attendanceIn?.attendanceOut?.pulangHeadcount ?? 0), 0);
+  const totalVendorPulangAdd = filteredPlotingans.reduce((sum, p) => sum + (p.attendanceIn?.attendanceOut?.pulangAdditional ?? 0), 0);
+  const totalVendorPulangTotal = totalVendorPulangReg + totalVendorPulangAdd;
+
+  const filteredUnder = underShiftFilter === 'ALL'
+    ? underAssignments
+    : underAssignments.filter((u) => u.shiftId === underShiftFilter);
+
+  const totalUnderPulangReg = filteredUnder.reduce((sum, u) => sum + (u.checkoutRegular ?? 0), 0);
+  const totalUnderPulangAdd = filteredUnder.reduce((sum, u) => sum + (u.checkoutAdditional ?? 0), 0);
+  const totalUnderPulangTotal = totalUnderPulangReg + totalUnderPulangAdd;
+
+  const selisihPulang = totalVendorPulangTotal - totalUnderPulangTotal;
+  const isPulangBalanced = totalVendorPulangTotal > 0 && selisihPulang === 0;
 
   return (
     <div className="space-y-6">
       
-      {/* 1. BANNER INFORMASI FASE ABSEN PULANG */}
-      <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
-        <h2 className="text-base font-bold text-slate-900">FASE 3: Absen Pulang, Tumbang & Audit Integritas per Bagian</h2>
-        <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-          Diisi di akhir shift. Wajib melampirkan foto checkout per bagian kerja gudang 
-          (<strong className="text-blue-700">Bongkar, Muat, Sortir, Repack, FIFO</strong>). 
-          Sistem mengaudit integritas: <span className="font-bold text-slate-900">Masuk = Pulang Utuh + Tumbang</span>.
-          <span className="font-semibold text-rose-700"> Form dikunci jika foto checkout belum diunggah!</span>
-        </p>
+      {/* 1. HEADER FASE 4 OPERASIONAL */}
+      <div className="bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-950 text-white rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-white/20 text-white border border-white/30">
+                FASE 4 OPERASIONAL
+              </span>
+              <span className="text-xs text-indigo-200 font-medium">Tanggal: {selectedDate}</span>
+            </div>
+            <h1 className="text-lg md:text-xl font-black tracking-tight mt-1 flex items-center gap-2">
+              <LogOut className="w-5 h-5 text-indigo-400" />
+              Absen Pulang & Rekonsiliasi Kepulangan Shift
+            </h1>
+            <p className="text-xs text-indigo-200/90 mt-0.5 max-w-2xl leading-relaxed">
+              Merekam pelepasan pulang pasukan dari dua sisi: Serah terima kepulangan Vendor & konfirmasi checkout 
+              oleh Under Lapangan di tiap divisi, tersinkronisasi otomatis dengan data pekerja tumbang.
+            </p>
+          </div>
+
+          {/* Sub-Tab Pill Switcher */}
+          <div className="flex items-center bg-black/30 p-1 rounded-xl border border-white/20 self-start md:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('VENDOR')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeSubTab === 'VENDOR'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>1. Kepulangan Vendor</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800">
+                {totalVendorPulangTotal} MP
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('UNDER')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                activeSubTab === 'UNDER'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+              <span>2. Kepulangan Under</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
+                {totalUnderPulangTotal} MP
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* 2. DAFTAR KARTU (1 KARTU PER VENDOR PER SHIFT) */}
-      {plotingans.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
-          <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-base font-bold text-slate-700">Belum Ada Plotingan pada Tanggal Ini</p>
-          <p className="text-xs text-slate-400 mt-1">Silakan atur data plotingan di Tab 1 terlebih dahulu.</p>
+      {/* 2. BANNER REKONSILIASI KEPULANGAN (AUDIT VENDOR VS UNDER) */}
+      <div className={`rounded-2xl border p-4 shadow-xs transition-all ${
+        isPulangBalanced
+          ? 'bg-emerald-50/70 border-emerald-300'
+          : selisihPulang > 0
+          ? 'bg-amber-50/80 border-amber-300'
+          : totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0
+          ? 'bg-slate-50 border-slate-200'
+          : 'bg-rose-50/80 border-rose-300'
+      }`}>
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl shrink-0 ${
+              isPulangBalanced
+                ? 'bg-emerald-600 text-white'
+                : selisihPulang > 0
+                ? 'bg-amber-600 text-white'
+                : totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0
+                ? 'bg-slate-300 text-slate-700'
+                : 'bg-rose-600 text-white'
+            }`}>
+              {isPulangBalanced ? (
+                <ShieldCheck className="w-5 h-5" />
+              ) : selisihPulang > 0 ? (
+                <AlertTriangle className="w-5 h-5" />
+              ) : (
+                <AlertCircle className="w-5 h-5" />
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Audit Rekonsiliasi Kepulangan Shift
+                </span>
+                {underShiftFilter !== 'ALL' && (
+                  <span className="text-[10px] font-bold bg-white px-2 py-0.5 rounded border text-slate-600">
+                    Filter: {availableShifts.find(s => s.id === underShiftFilter)?.name || underShiftFilter}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mt-1 text-slate-700">
+                <span>
+                  🏢 Pulang Diserahkan Vendor: <strong className="font-extrabold text-blue-700">{totalVendorPulangTotal} MP</strong> 
+                  {' '}({totalVendorPulangReg} Reg + {totalVendorPulangAdd} Add)
+                </span>
+                <span className="text-slate-300 hidden sm:inline">&bull;</span>
+                <span>
+                  📍 Pulang Dikonfirmasi Under: <strong className="font-extrabold text-indigo-700">{totalUnderPulangTotal} MP</strong> 
+                  {' '}({totalUnderPulangReg} Reg + {totalUnderPulangAdd} Add)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+            {totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0 ? (
+              <span className="px-3 py-1.5 rounded-xl bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-slate-500" />
+                Shift Berjalan (Belum Ada Checkout Pulang)
+              </span>
+            ) : isPulangBalanced ? (
+              <span className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-black shadow-xs flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-100" />
+                KLOP 100% (Vendor & Under Sesuai)
+              </span>
+            ) : selisihPulang > 0 ? (
+              <span className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-100" />
+                Selisih: {selisihPulang} MP Belum Dikonfirmasi Checkout Under
+              </span>
+            ) : (
+              <span className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-black shadow-xs flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-100" />
+                Selisih: Checkout Under Melebihi Vendor (+{Math.abs(selisihPulang)} MP)
+              </span>
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {plotingans.map((p) => {
-            const hasCheckedIn = !!p.attendanceIn;
-            const hasCheckedOut = !!p.attendanceIn?.attendanceOut;
-            
-            const inReg = p.attendanceIn?.actualRegular ?? p.attendanceIn?.actualHeadcount ?? 0;
-            const inAdd = p.attendanceIn?.actualAdditional ?? 0;
+      </div>
 
-            const outRecord = p.attendanceIn?.attendanceOut;
-            const pulangReg = outRecord?.pulangRegular ?? outRecord?.pulangHeadcount ?? 0;
-            const pulangAdd = outRecord?.pulangAdditional ?? 0;
-            const pulangTotal = outRecord?.pulangHeadcount ?? (pulangReg + pulangAdd);
+      {/* ==================================================================== */}
+      {/* SUB-TAB 1: SERAH TERIMA KEPULANGAN VENDOR                            */}
+      {/* ==================================================================== */}
+      {activeSubTab === 'VENDOR' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plotingans.map((p) => {
+              const hasCheckedIn = !!p.attendanceIn;
+              const hasCheckedOut = !!p.attendanceIn?.attendanceOut;
+              const inReg = p.attendanceIn ? (p.attendanceIn.actualRegular ?? p.attendanceIn.actualHeadcount) : 0;
+              const inAdd = p.attendanceIn?.actualAdditional ?? 0;
+              const inTotal = inReg + inAdd;
 
-            const tumbangTotal = outRecord?.tumbangHeadcount ?? 0;
-            const selisihCard = outRecord?.selisihCount ?? 0;
-            const isMatch = outRecord?.isBalanced ?? false;
+              const out = p.attendanceIn?.attendanceOut;
+              const outReg = out ? (out.pulangRegular ?? out.pulangHeadcount ?? 0) : 0;
+              const outAdd = out ? (out.pulangAdditional ?? 0) : 0;
+              const outTotal = outReg + outAdd;
 
-            const targetReg = p.targetRegular ?? (p.status === 'REGULAR' ? p.targetHeadcount : 0);
-            const targetAdd = p.targetAdditional ?? (p.status === 'ADDITIONAL' ? p.targetHeadcount : 0);
+              const tumbangReg = out ? (out.tumbangRegular ?? 0) : 0;
+              const tumbangAdd = out ? (out.tumbangAdditional ?? 0) : 0;
+              const tumbangTotal = tumbangReg + tumbangAdd;
 
-            // Ekstrak multi-foto checkout
-            let cardPulangRegPhotos: Array<{ section: string; url: string }> = [];
-            if (outRecord?.photosPulangRegularJson) {
-              try {
-                const parsed = JSON.parse(outRecord.photosPulangRegularJson);
-                if (Array.isArray(parsed)) cardPulangRegPhotos = parsed;
-              } catch (e) {}
-            }
-            if (cardPulangRegPhotos.length === 0 && outRecord?.photoPulangRegularUrl) {
-              cardPulangRegPhotos = [{ section: 'Regular', url: outRecord.photoPulangRegularUrl }];
-            }
+              // Cek insiden tumbang hari ini untuk vendor ini dari Tab 3 Live Tumbang
+              const relatedTumbang = tumbangIncidents.filter((inc) => 
+                inc.shiftId === p.shiftId && (inc.vendorId === p.vendorId || inc.vendorName?.toLowerCase() === p.vendor.name.toLowerCase())
+              );
 
-            let cardPulangAddPhotos: Array<{ section: string; url: string }> = [];
-            if (outRecord?.photosPulangAdditionalJson) {
-              try {
-                const parsed = JSON.parse(outRecord.photosPulangAdditionalJson);
-                if (Array.isArray(parsed)) cardPulangAddPhotos = parsed;
-              } catch (e) {}
-            }
-            if (cardPulangAddPhotos.length === 0 && outRecord?.photoPulangAdditionalUrl) {
-              cardPulangAddPhotos = [{ section: 'Additional', url: outRecord.photoPulangAdditionalUrl }];
-            }
-
-            const totalPulangPhotos = cardPulangRegPhotos.length + cardPulangAddPhotos.length;
-
-            // Ekstrak data multi-kejadian orang tumbang / izin di jam kerja
-            let cardTumbangIncidents: Array<{ category: string; time: string; type: string; notes: string; url: string }> = [];
-            if (outRecord?.tumbangNotes) {
-              try {
-                const parsed = JSON.parse(outRecord.tumbangNotes);
-                if (Array.isArray(parsed)) cardTumbangIncidents = parsed;
-              } catch (e) {}
-            }
-            if (cardTumbangIncidents.length === 0 && outRecord?.photoTumbangUrl) {
-              cardTumbangIncidents = [{
-                category: (outRecord.tumbangRegular ?? 0) > 0 ? 'REGULAR' : 'ADDITIONAL',
-                time: '',
-                type: 'Kendala',
-                notes: outRecord.tumbangNotes || '',
-                url: outRecord.photoTumbangUrl,
-              }];
-            }
-
-            return (
-              <div
-                key={p.id}
-                className={`bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex flex-col justify-between ${
-                  !hasCheckedIn
-                    ? 'border-slate-200 opacity-60 bg-slate-50/50'
-                    : hasCheckedOut
-                    ? 'border-emerald-300'
-                    : 'border-amber-300'
-                }`}
-              >
-                <div>
-                  {/* Strip Status di Atas Kartu */}
-                  <div
-                    className={`px-4 py-2 flex items-center justify-between text-xs font-bold ${
+              return (
+                <div
+                  key={p.id}
+                  className={`bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex flex-col justify-between ${
+                    !hasCheckedIn
+                      ? 'border-slate-200 opacity-60'
+                      : hasCheckedOut
+                      ? 'border-emerald-300'
+                      : 'border-amber-300'
+                  }`}
+                >
+                  <div>
+                    {/* Status Header */}
+                    <div className={`px-4 py-2 flex items-center justify-between text-xs font-bold ${
                       !hasCheckedIn
                         ? 'bg-slate-100 text-slate-500'
                         : hasCheckedOut
                         ? 'bg-emerald-50 text-emerald-700'
                         : 'bg-amber-50 text-amber-700'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      {!hasCheckedIn ? (
-                        <>
-                          <Clock className="w-3.5 h-3.5" />
-                          Belum Absen Masuk
-                        </>
-                      ) : hasCheckedOut ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          Selesai Shift &bull; {pulangTotal} Pulang{tumbangTotal > 0 ? ` • ${tumbangTotal} Tumbang` : ''}
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-                          Sedang Bekerja (Belum Checkout)
-                        </>
-                      )}
-                    </span>
-                    
-                    {/* Badge Shift */}
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-xs">
-                      {p.shift.name.toLowerCase().includes('pagi') ? (
-                        <Sun className="w-3 h-3 text-amber-500" />
-                      ) : (
-                        <Moon className="w-3 h-3 text-indigo-500" />
-                      )}
-                      {p.shift.name}
-                    </span>
-                  </div>
+                    }`}>
+                      <span className="flex items-center gap-1.5">
+                        {!hasCheckedIn ? (
+                          <>
+                            <Clock className="w-3.5 h-3.5" />
+                            Belum Absen Masuk
+                          </>
+                        ) : hasCheckedOut ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Sudah Checkout ({outTotal} MP)
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                            Sedang Kerja (Belum Checkout)
+                          </>
+                        )}
+                      </span>
 
-                  <div className="p-4 space-y-3">
-                    {/* Info Vendor & Rincian Target */}
-                    <div>
-                      <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-1.5">
-                        <Building2 className="w-4 h-4 text-slate-400" />
-                        {p.vendor.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Target Kuota: <strong className="text-slate-800 font-bold">{p.targetHeadcount} MP</strong>
-                        {p.workingHours ? ` &bull; ${p.workingHours}` : ''}
-                      </p>
+                      <span className="text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-2xs">
+                        Shift {p.shift.name}
+                      </span>
                     </div>
 
-                    {/* Grid Rincian Headcount Terpadu */}
-                    {hasCheckedIn ? (
-                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
-                        <div className="grid grid-cols-4 gap-1 text-center border-b border-slate-200 pb-1 text-[10px] uppercase font-bold text-slate-400">
-                          <span>Status</span>
-                          <span>Masuk</span>
-                          <span>Pulang</span>
-                          <span>Tumbang</span>
-                        </div>
-                        
-                        {/* Baris Regular */}
-                        <div className="grid grid-cols-4 gap-1 text-center text-xs font-semibold">
-                          <span className="text-blue-700 font-bold text-left pl-1">Regular</span>
-                          <span className="text-slate-900 font-extrabold">{inReg}</span>
-                          <span className={hasCheckedOut ? 'text-blue-600 font-extrabold' : 'text-slate-400'}>
-                            {hasCheckedOut ? pulangReg : '-'}
-                          </span>
-                          <span className={hasCheckedOut ? 'text-amber-700 font-black' : 'text-slate-400'}>
-                            {hasCheckedOut ? (outRecord?.tumbangRegular ?? 0) : '-'}
-                          </span>
-                        </div>
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <h3 className="font-black text-base text-slate-900 flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          {getShortVendorName(p.vendor.name)}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Masuk: <strong className="text-slate-800">{inTotal} MP</strong> ({inReg} Reg + {inAdd} Add)
+                        </p>
+                      </div>
 
-                        {/* Baris Additional */}
-                        {inAdd > 0 && (
-                          <div className="grid grid-cols-4 gap-1 text-center text-xs font-semibold">
-                            <span className="text-amber-700 font-bold text-left pl-1">Additional</span>
-                            <span className="text-slate-900 font-extrabold">{inAdd}</span>
-                            <span className={hasCheckedOut ? 'text-amber-600 font-extrabold' : 'text-slate-400'}>
-                              {hasCheckedOut ? pulangAdd : '-'}
+                      {/* Notifikasi Tumbang Terhubung dari Tab 3 */}
+                      {relatedTumbang.length > 0 && (
+                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-800 space-y-1">
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="flex items-center gap-1">
+                              <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+                              Data Tumbang Shift Ini:
                             </span>
-                            <span className={hasCheckedOut ? 'text-amber-700 font-black' : 'text-slate-400'}>
-                              {hasCheckedOut ? (outRecord?.tumbangAdditional ?? 0) : '-'}
+                            <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded text-[10px] font-black">
+                              {relatedTumbang.length} Orang
                             </span>
                           </div>
-                        )}
-
-                        {/* Baris Total Ringkasan */}
-                        <div className="border-t border-slate-200 pt-1.5 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-600 font-semibold">
-                            Tumbang: <strong className="text-amber-600 font-black">{hasCheckedOut ? tumbangTotal : 0} Org</strong>
-                          </span>
-                          <span className="text-slate-600 font-semibold">
-                            Pulang Utuh: <strong className="text-blue-700 font-black">{hasCheckedOut ? pulangTotal : 0} Org</strong>
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-100 rounded-xl p-3 text-center text-xs text-slate-400">
-                        Plotingan ini belum melakukan Absen Masuk di Tab 2.
-                      </div>
-                    )}
-
-                    {/* Keterangan Multi-Kejadian Tumbang jika ada */}
-                    {hasCheckedOut && tumbangTotal > 0 && (
-                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-2.5 text-xs text-amber-900 space-y-1.5">
-                        <div className="flex items-center justify-between font-bold text-amber-800">
-                          <div className="flex items-center gap-1">
-                            <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Keterangan Kendala ({tumbangTotal} Orang):</span>
-                          </div>
-                        </div>
-                        {cardTumbangIncidents.length > 0 ? (
-                          <div className="space-y-1">
-                            {cardTumbangIncidents.map((inc, iIdx) => (
-                              <div key={iIdx} className="flex items-center justify-between text-[11px] bg-white/90 p-1.5 rounded-lg border border-amber-200/60 shadow-2xs">
-                                <div className="flex items-center gap-1.5 truncate mr-2">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${inc.category === 'REGULAR' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
-                                    {inc.category === 'REGULAR' ? 'Reg' : 'Add'}
-                                  </span>
-                                  {inc.time && (
-                                    <span className="font-mono font-black text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
-                                      {convertTo24Hour(inc.time)}
-                                    </span>
-                                  )}
-                                  <span className="text-slate-800 font-medium truncate">{inc.notes || inc.type}</span>
-                                </div>
-                                {inc.url && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setLightboxPhoto({ url: inc.url, title: `Bukti Kendala: ${p.vendor.name} (${inc.time || ''})` })}
-                                    className="text-[10px] text-amber-700 hover:text-amber-900 underline font-bold shrink-0 flex items-center gap-0.5 cursor-pointer"
-                                  >
-                                    <Camera className="w-3 h-3" />
-                                    Foto
-                                  </button>
-                                )}
-                              </div>
+                          <p className="text-[11px] text-rose-700">
+                            {relatedTumbang.map((t, idx) => (
+                              <span key={idx} className="block">
+                                &bull; Jam {t.time} ({t.category}): {t.type} di {t.division}
+                              </span>
                             ))}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-amber-700 italic">
-                            "{outRecord?.tumbangNotes || 'Tidak ada catatan kendala rinci'}"
                           </p>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      )}
 
-                    {/* Galeri Multi-Foto Checkout Kepulangan */}
-                    {hasCheckedOut && totalPulangPhotos > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                          <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                          Foto Checkout ({totalPulangPhotos}):
-                        </span>
-                        
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {/* Foto-foto Pulang Regular */}
-                          {cardPulangRegPhotos.map((photo, pIdx) => (
-                            <div
-                              key={`card-pulang-reg-${pIdx}`}
-                              onClick={() => setLightboxPhoto({ url: photo.url, title: `Pulang Regular: ${photo.section}` })}
-                              className="group relative rounded-lg overflow-hidden border border-blue-200 h-16 bg-slate-100 cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
-                              title={`Checkout Regular: ${photo.section}`}
-                            >
-                              <img
-                                src={photo.url}
-                                alt={`Checkout Regular ${photo.section}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <ZoomIn className="w-4 h-4 text-white" />
-                              </div>
-                              <span className="absolute bottom-0 inset-x-0 bg-blue-900/85 text-white text-[9px] font-bold text-center py-0.5 truncate px-1">
-                                {photo.section}
-                              </span>
-                            </div>
-                          ))}
-
-                          {/* Foto-foto Pulang Additional */}
-                          {cardPulangAddPhotos.map((photo, pIdx) => (
-                            <div
-                              key={`card-pulang-add-${pIdx}`}
-                              onClick={() => setLightboxPhoto({ url: photo.url, title: `Pulang Additional: ${photo.section}` })}
-                              className="group relative rounded-lg overflow-hidden border border-amber-200 h-16 bg-slate-100 cursor-pointer hover:ring-2 hover:ring-amber-400 transition-all"
-                              title={`Checkout Additional: ${photo.section}`}
-                            >
-                              <img
-                                src={photo.url}
-                                alt={`Checkout Additional ${photo.section}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                              />
-                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <ZoomIn className="w-4 h-4 text-white" />
-                              </div>
-                              <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[9px] font-bold text-center py-0.5 truncate px-1">
-                                Add: {photo.section}
-                              </span>
-                            </div>
-                          ))}
+                      {/* Rincian Pulang */}
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600 font-medium">Pulang Regular:</span>
+                          <span className="font-extrabold text-blue-700">{hasCheckedOut ? `${outReg} MP` : '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600 font-medium">Pulang Additional:</span>
+                          <span className="font-extrabold text-amber-700">{hasCheckedOut ? `${outAdd} MP` : '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 font-bold">
+                          <span className="text-slate-700">Total Pulang / Masuk:</span>
+                          <span className={hasCheckedOut ? 'text-emerald-700 font-black' : 'text-slate-500'}>
+                            {hasCheckedOut ? `${outTotal} / ${inTotal} MP` : `Masuk: ${inTotal} MP`}
+                          </span>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Tombol Input / Edit Absen Pulang */}
-                <div className="p-4 pt-0">
-                  {hasCheckedIn && (
+                  {/* Tombol Action */}
+                  <div className="p-4 pt-0">
                     <button
-                      onClick={() => handleOpenModal(p)}
+                      type="button"
+                      disabled={!hasCheckedIn}
+                      onClick={() => handleOpenVendorModal(p)}
                       className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        hasCheckedOut
+                        !hasCheckedIn
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : hasCheckedOut
                           ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                       }`}
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      {hasCheckedOut ? 'Edit Absen Pulang' : 'Input Absen Pulang'}
+                      {hasCheckedOut ? 'Edit Checkout Vendor' : 'Input Checkout Vendor (Wajib Foto)'}
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* 3. MODAL FORM INPUT ABSEN PULANG, TUMBANG & MULTI-FOTO PER BAGIAN */}
-      {isModalOpen && selectedPlotingan && (
+      {/* ==================================================================== */}
+      {/* SUB-TAB 2: KEPULANGAN REGU UNDER LAPANGAN                            */}
+      {/* ==================================================================== */}
+      {activeSubTab === 'UNDER' && (
+        <div className="space-y-4">
+          
+          {/* Shift Filter */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-600">Filter Shift:</span>
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setUnderShiftFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    underShiftFilter === 'ALL'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Semua Shift
+                </button>
+                {availableShifts.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setUnderShiftFilter(s.id)}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      underShiftFilter === s.id
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Shift {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <span className="text-xs font-bold text-slate-500">
+              Total {filteredUnder.length} Regu Terdaftar
+            </span>
+          </div>
+
+          {/* Grid Under Cards */}
+          {filteredUnder.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+              <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm font-bold text-slate-700">Belum Ada Penugasan Under</p>
+              <p className="text-xs text-slate-400 mt-0.5">Under didistribusikan pada Fase 2 (Absen Masuk).</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredUnder.map((u) => {
+                const isUnderCheckedOut = !!u.checkoutPhotoUrl || u.checkoutTotal !== null;
+                const def = DIVISION_DEFINITIONS.find((d) => d.key === u.division);
+
+                return (
+                  <div
+                    key={u.id}
+                    className={`bg-white rounded-2xl border transition-all p-4 flex flex-col justify-between shadow-xs hover:shadow-md ${
+                      isUnderCheckedOut ? 'border-emerald-300' : 'border-amber-300'
+                    }`}
+                  >
+                    <div>
+                      {/* Header Divisi & Nama Under */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${def?.badgeStyle || 'bg-slate-100 text-slate-700'}`}>
+                            {def?.name || u.division}
+                          </span>
+                          <h4 className="font-black text-sm text-slate-900 mt-1.5">{u.underName}</h4>
+                          <span className="text-[10px] text-slate-500">Shift {u.shift?.name || 'Pagi'}</span>
+                        </div>
+
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                          isUnderCheckedOut ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isUnderCheckedOut ? `${u.checkoutTotal} MP Pulang` : `${u.totalHeadcount} MP Masuk`}
+                        </span>
+                      </div>
+
+                      {/* Headcount Breakdown */}
+                      <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 my-3 text-xs space-y-1">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Masuk Awal:</span>
+                          <span className="font-bold text-slate-800">{u.regularCount} Reg + {u.additionalCount} Add</span>
+                        </div>
+                        {isUnderCheckedOut && (
+                          <div className="flex justify-between text-emerald-700 font-bold border-t border-slate-200 pt-1">
+                            <span>Checkout Pulang:</span>
+                            <span>{u.checkoutRegular} Reg + {u.checkoutAdditional} Add</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Foto Apel Checkout Kepulangan */}
+                      {u.checkoutPhotoUrl ? (
+                        <div
+                          onClick={() => setLightboxPhoto({ url: u.checkoutPhotoUrl, title: `Checkout Pulang: ${u.underName} (${u.division})` })}
+                          className="relative h-24 rounded-xl overflow-hidden border border-emerald-300 bg-slate-100 cursor-pointer group mb-2"
+                        >
+                          <img src={u.checkoutPhotoUrl} alt="Foto Checkout Pulang" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <ZoomIn className="w-4 h-4 text-white" />
+                          </div>
+                          <span className="absolute bottom-1 right-1 text-[9px] font-bold bg-black/70 text-white px-1.5 py-0.2 rounded">
+                            Foto Checkout
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="h-16 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 flex items-center justify-center text-[10px] text-amber-700 gap-1 mb-2">
+                          <Camera className="w-3.5 h-3.5 text-amber-500" /> Belum ada foto apel pulang
+                        </div>
+                      )}
+
+                      {u.checkoutNotes && (
+                        <p className="text-[10px] text-slate-500 italic line-clamp-2 mb-2">
+                          "{u.checkoutNotes}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Tombol Checkout Under */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenUnderModal(u)}
+                        className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          isUnderCheckedOut
+                            ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                        }`}
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        {isUnderCheckedOut ? 'Edit Checkout Regu' : 'Input Checkout Regu (Wajib Foto)'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 3. MODAL CHECKOUT VENDOR (SUB-TAB 1)                                  */}
+      {/* ==================================================================== */}
+      {isVendorModalOpen && selectedPlotingan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
-            {/* Header Modal */}
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="font-extrabold text-lg text-slate-900">Form Absen Pulang & Audit Integritas</h3>
+                <h3 className="font-black text-lg text-slate-900">
+                  Checkout Serah Terima Vendor
+                </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  {selectedPlotingan.vendor.name} &bull; {selectedPlotingan.shift.name} ({selectedDate})
+                  {getShortVendorName(selectedPlotingan.vendor.name)} &bull; Shift {selectedPlotingan.shift.name} ({selectedDate})
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsVendorModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Form Input */}
-            <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+            <form onSubmit={handleVendorSubmit} className="space-y-4 mt-4">
               
-              {/* Ringkasan Hadir Masuk di Awal Shift */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-600 uppercase">Tercatat Hadir Masuk:</span>
-                <span className="font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-                  Reg: {inRegModal} &bull; Add: {inAddModal} (Total: {inTotalModal} Org)
-                </span>
-              </div>
-
-              {/* 1. INPUT KEPULANGAN UTUH */}
-              <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200 space-y-2">
-                <label className="block text-xs font-bold text-blue-900 uppercase">
-                  1. Orang Pulang Utuh (Selesai Shift Kerja)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[11px] font-bold text-blue-700 block mb-1">Pulang Regular (Maks: {inRegModal}):</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={inRegModal}
-                      required
-                      value={pulangRegular}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                        const clamped = Math.min(Math.max(0, val), inRegModal);
-                        setPulangRegular(clamped);
-                        // Otomatis sesuaikan tumbang jika user ubah pulang langsung
-                        setTumbangRegular(Math.max(0, inRegModal - clamped));
-                      }}
-                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-bold text-amber-700 block mb-1">Pulang Additional (Maks: {inAddModal}):</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max={inAddModal}
-                      value={pulangAdditional}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                        const clamped = Math.min(Math.max(0, val), inAddModal);
-                        setPulangAdditional(clamped);
-                        // Otomatis sesuaikan tumbang jika user ubah pulang langsung
-                        setTumbangAdditional(Math.max(0, inAddModal - clamped));
-                      }}
-                      className="w-full border-2 border-amber-300 bg-white rounded-xl px-3 py-1.5 text-base font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
+              {/* Ringkasan Masuk */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
+                <span className="font-bold text-slate-700 uppercase block mb-1">Status Kehadiran Masuk:</span>
+                <div className="flex justify-between text-slate-800">
+                  <span>Masuk Regular: <strong>{selectedPlotingan.attendanceIn?.actualRegular || 0} MP</strong></span>
+                  <span>Masuk Additional: <strong>{selectedPlotingan.attendanceIn?.actualAdditional || 0} MP</strong></span>
+                  <span>Total: <strong>{(selectedPlotingan.attendanceIn?.actualRegular || 0) + (selectedPlotingan.attendanceIn?.actualAdditional || 0)} MP</strong></span>
                 </div>
               </div>
 
-              {/* 2. INPUT ORANG TUMBANG (SAKIT / CEDERA) */}
-              <div className="p-3.5 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
-                <label className="block text-xs font-bold text-amber-900 uppercase flex items-center gap-1.5">
-                  <HeartPulse className="w-3.5 h-3.5 text-amber-600" />
-                  2. Orang Tumbang di Jam Kerja (Sakit / Cedera / P3K)
-                </label>
-                <div className="grid grid-cols-2 gap-3">
+              {/* Rincian Pulang Utuh */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200">
+                  <label className="block text-xs font-bold text-blue-800 mb-1">
+                    Pulang Regular (MP):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={pulangRegular === 0 ? '' : pulangRegular}
+                    onChange={(e) => setPulangRegular(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-blue-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200">
+                  <label className="block text-xs font-bold text-amber-800 mb-1">
+                    Pulang Additional (MP):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={pulangAdditional === 0 ? '' : pulangAdditional}
+                    onChange={(e) => setPulangAdditional(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-amber-300 rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Rincian Tumbang Terhubung */}
+              <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200 space-y-2">
+                <div className="flex items-center justify-between text-xs text-rose-900 font-bold">
+                  <span className="flex items-center gap-1">
+                    <HeartPulse className="w-4 h-4 text-rose-600" />
+                    Pekerja Tumbang / Izin di Jam Kerja:
+                  </span>
+                  <span>Total: {tumbangRegular + tumbangAdditional} Orang</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-blue-700">Tumbang Regular:</span>
-                      <span className="text-[10px] text-slate-400 font-medium">(Auto-potong Pulang)</span>
-                    </div>
+                    <label className="block text-[11px] font-bold text-rose-800 mb-0.5">Tumbang Regular:</label>
                     <input
                       type="number"
                       min="0"
-                      max={inRegModal}
                       value={tumbangRegular}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                        const clamped = Math.min(Math.max(0, val), inRegModal);
-                        setTumbangRegular(clamped);
-                        // Otomatis kurangi pulangRegular: Masuk - Tumbang
-                        setPulangRegular(Math.max(0, inRegModal - clamped));
-                      }}
-                      className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onChange={(e) => setTumbangRegular(parseInt(e.target.value, 10) || 0)}
+                      className="w-full text-sm font-black p-1.5 rounded-lg border border-rose-300 bg-white"
                     />
                   </div>
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-amber-700">Tumbang Additional:</span>
-                      <span className="text-[10px] text-slate-400 font-medium">(Auto-potong Pulang)</span>
-                    </div>
+                    <label className="block text-[11px] font-bold text-rose-800 mb-0.5">Tumbang Additional:</label>
                     <input
                       type="number"
                       min="0"
-                      max={inAddModal}
                       value={tumbangAdditional}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                        const clamped = Math.min(Math.max(0, val), inAddModal);
-                        setTumbangAdditional(clamped);
-                        // Otomatis kurangi pulangAdditional: Masuk - Tumbang
-                        setPulangAdditional(Math.max(0, inAddModal - clamped));
-                      }}
-                      className="w-full border border-slate-300 bg-white rounded-xl px-3 py-1.5 text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      onChange={(e) => setTumbangAdditional(parseInt(e.target.value, 10) || 0)}
+                      className="w-full text-sm font-black p-1.5 rounded-lg border border-rose-300 bg-white"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* KOTAK REKAPITULASI KEPULANGAN & INTEGRITAS (Clean tanpa kata Total Akhir) */}
-              <div className="p-3.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-900">
-                <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                    Rekapitulasi Akhir Shift:
-                  </span>
-                  <span className="font-black px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
-                    Total: {pulangRegular + pulangAdditional + tumbangRegular + tumbangAdditional} Org
-                  </span>
-                </div>
-
-                <div className="text-[11px] space-y-1">
-                  <div className="flex justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
-                    <span className="text-slate-600">Regular: Masuk {inRegModal} = Pulang {pulangRegular} + Tumbang {tumbangRegular}</span>
-                    <strong className="text-blue-700 font-extrabold">
-                      Total: {pulangRegular + tumbangRegular} Org
-                    </strong>
-                  </div>
-                  {inAddModal > 0 && (
-                    <div className="flex justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
-                      <span className="text-slate-600">Additional: Masuk {inAddModal} = Pulang {pulangAdditional} + Tumbang {tumbangAdditional}</span>
-                      <strong className="text-amber-700 font-extrabold">
-                        Total: {pulangAdditional + tumbangAdditional} Org
-                      </strong>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ------------------------------------------------------------ */}
-              {/* SEKSI MULTI-KEJADIAN ORANG TUMBANG / IZIN DI JAM KERJA        */}
-              {/* Mendukung > 1 orang dengan jam keluar berbeda & foto bukti mandiri */}
-              {/* ------------------------------------------------------------ */}
-              <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
-                  <div>
-                    <label className="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
-                      <HeartPulse className="w-4 h-4 text-amber-600" />
-                      Daftar Kejadian Tumbang / Izin ({tumbangIncidents.length} Orang)
-                    </label>
-                    <p className="text-[11px] text-amber-800/80 mt-0.5">
-                      Catat setiap orang yang pulang awal/sakit dengan jam keluar dan foto bukti masing-masing.
-                    </p>
-                  </div>
+              {/* Upload Foto Kontingen Pulang Vendor */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Foto Bukti Apel Kontingen Pulang Vendor (Wajib Foto):
+                  </label>
                   <button
                     type="button"
-                    onClick={() => handleAddIncident()}
-                    className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer self-start sm:self-auto"
+                    onClick={handleAddPulangRegSlot}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    Catat Orang Tumbang / Izin
+                    <Plus className="w-3 h-3" /> + Foto
                   </button>
                 </div>
 
-                {tumbangIncidents.length === 0 ? (
-                  <div className="bg-white/80 rounded-xl p-4 text-center border border-dashed border-amber-200">
-                    <p className="text-xs font-bold text-amber-900">Tidak ada pekerja yang tumbang / sakit</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Jika semua pekerja menyelesaikan shift sampai selesai, lewati bagian ini.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleAddIncident()}
-                      className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-100/80 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      + Catat Kejadian Tumbang / Izin
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {tumbangIncidents.map((inc, idx) => (
-                      <div key={inc.id} className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-xs space-y-2.5">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                          <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                            <span className="w-5 h-5 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center text-[11px]">
-                              {idx + 1}
-                            </span>
-                            Kejadian #{idx + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveIncident(inc.id)}
-                            className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Hapus
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                          {/* Status Pasukan (Reg vs Add) */}
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Status Pasukan</label>
-                            <select
-                              value={inc.category}
-                              onChange={(e) => handleUpdateIncident(inc.id, 'category', e.target.value)}
-                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            >
-                              <option value="REGULAR">🔵 Regular</option>
-                              {inAddModal > 0 && <option value="ADDITIONAL">🟠 Additional</option>}
-                            </select>
-                          </div>
-
-                          {/* Input Jam Kejadian (Simpel, Bersih, Format 24 Jam) */}
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">
-                              Jam
-                            </label>
-                            <div className="relative flex items-center">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                required
-                                value={inc.time}
-                                placeholder="23:27"
-                                maxLength={5}
-                                onChange={(e) => {
-                                  // Ambil hanya angka dan titik dua
-                                  let val = e.target.value.replace(/[^0-9:]/g, '');
-                                  // Otomatis sisipkan tanda ':' setelah 2 digit jam
-                                  if (val.length === 2 && !val.includes(':') && e.target.value.length > (inc.time || '').length) {
-                                    val = val + ':';
-                                  }
-                                  handleUpdateIncident(inc.id, 'time', val);
-                                }}
-                                onBlur={(e) => {
-                                  // Normalisasi ketat ke format 24 jam (00:00 s.d. 23:59)
-                                  const formatted = convertTo24Hour(e.target.value);
-                                  handleUpdateIncident(inc.id, 'time', formatted);
-                                }}
-                                className="w-full text-xs font-bold font-mono rounded-lg border border-slate-300 pl-2.5 pr-16 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                              {/* Tombol Cepat: Jam Sekarang */}
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateIncident(inc.id, 'time', getCurrent24HourTime())}
-                                className="absolute right-1 px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors cursor-pointer"
-                                title="Set ke jam saat ini"
-                              >
-                                Sekarang
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Jenis Kendala */}
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Jenis Kendala</label>
-                            <select
-                              value={inc.type}
-                              onChange={(e) => handleUpdateIncident(inc.id, 'type', e.target.value)}
-                              className="w-full text-xs font-bold rounded-lg border border-slate-300 px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            >
-                              <option value="Sakit / Klinik">Sakit / Klinik</option>
-                              <option value="Izin Darurat">Izin Darurat</option>
-                              <option value="Cedera Kerja">Cedera Kerja</option>
-                              <option value="Meninggalkan Tugas / Kabur">Meninggalkan Tugas / Kabur</option>
-                              <option value="Lainnya">Lainnya</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Catatan Keterangan Detail */}
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
-                            Catatan Detail / Diagnosa / Alasan (Wajib)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={inc.notes}
-                            onChange={(e) => handleUpdateIncident(inc.id, 'notes', e.target.value)}
-                            placeholder="Contoh: Sakit lambung kambuh, izin urusan keluarga mendadak..."
-                            className="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                          />
-                        </div>
-
-                        {/* Upload Foto Bukti Khusus Kejadian Ini */}
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="text-[10px] font-bold text-slate-600 uppercase">
-                              Foto Bukti Surat Dokter / Klinik / Pos Security
-                            </label>
-                            <span className="text-[10px] text-rose-600 font-bold">*Wajib Foto</span>
-                          </div>
-
-                          {inc.preview ? (
-                            <div className="relative rounded-lg overflow-hidden border border-slate-200 h-24 bg-slate-100 flex items-center justify-center">
-                              <img src={inc.preview} alt={`Bukti ${inc.category}`} className="w-full h-full object-cover" />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveIncidentPhoto(inc.id)}
-                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs cursor-pointer shadow-xs"
-                                title="Hapus foto"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                              <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[9px] font-bold text-center py-0.5">
-                                Bukti Terlampir ({inc.category} • {inc.time})
-                              </span>
-                            </div>
-                          ) : (
-                            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg p-3 bg-amber-50/40 hover:bg-amber-50/80 cursor-pointer text-xs font-bold text-amber-800 transition-colors">
-                              <Camera className="w-4 h-4 text-amber-600" />
-                              <span>Unggah Foto Bukti ({inc.category} • {inc.time || 'Jam Pulang'})</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleIncidentFileChange(inc.id, file);
-                                }}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* ------------------------------------------------------------ */}
-              {/* 1. SEKSI FOTO CHECKOUT REGULAR PER BAGIAN GUDANG              */}
-              {/* ------------------------------------------------------------ */}
-              <div className="p-4 bg-blue-50/40 rounded-xl border border-blue-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-blue-900 uppercase flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-                      Foto Barisan Checkout REGULAR per Bagian
-                    </h4>
-                    <p className="text-[11px] text-blue-700">
-                      {pulangRegular > 0 ? (
-                        <span className="font-bold text-rose-600">
-                          *Wajib minimal 1 foto barisan checkout untuk {pulangRegular} orang Regular.
-                        </span>
-                      ) : (
-                        'Tidak ada kepulangan regular.'
-                      )}
-                    </p>
-                  </div>
-                  
-                  {/* Tombol Tambah Bagian Checkout Regular */}
-                  <button
-                    type="button"
-                    onClick={() => handleAddPulangRegSlot()}
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Bagian</span>
-                  </button>
-                </div>
-
-                {/* List Slot Foto Checkout Regular */}
-                {pulangRegPhotoSlots.length === 0 ? (
-                  <div className="p-3.5 bg-white/80 rounded-xl border border-dashed border-blue-300 text-center">
-                    <p className="text-xs text-blue-600 font-medium">
-                      Belum ada slot foto checkout untuk Regular.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleAddPulangRegSlot()}
-                      className="mt-1.5 text-xs font-bold text-blue-700 underline hover:text-blue-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah Slot Foto Checkout Regular</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {pulangRegPhotoSlots.map((slot, sIdx) => (
-                      <div
-                        key={slot.id}
-                        className="bg-white p-3 rounded-xl border border-blue-200 shadow-xs space-y-2.5"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 space-y-1.5">
-                            <span className="text-[10px] font-extrabold text-blue-800 uppercase tracking-wide">
-                              Bagian Kerja #{sIdx + 1}:
-                            </span>
-                            
-                            {/* Quick Chips Preset */}
-                            <div className="flex flex-wrap gap-1">
-                              {SECTION_PRESETS.map((preset) => (
-                                <button
-                                  type="button"
-                                  key={preset}
-                                  onClick={() => handleUpdatePulangRegSection(slot.id, preset)}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                                    slot.section === preset
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  {preset}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Input Teks Manual */}
-                            <input
-                              type="text"
-                              value={slot.section}
-                              onChange={(e) => handleUpdatePulangRegSection(slot.id, e.target.value)}
-                              placeholder="Ketik nama bagian checkout manual..."
-                              className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleAddPulangRegSlot(sIdx)}
-                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
-                              title="Tambah Bagian Baru di Bawah Ini"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Tambah</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePulangRegSlot(slot.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Hapus slot ini"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Upload Foto & Pratinjau */}
-                        {slot.preview ? (
-                          <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100 group">
-                            <img
-                              src={slot.preview}
-                              alt={`Checkout ${slot.section}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute top-1.5 right-1.5 flex gap-1">
-                              <label className="bg-slate-900/80 hover:bg-slate-900 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer flex items-center gap-1 shadow-xs">
-                                <Camera className="w-3 h-3" />
-                                Ganti
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handlePulangRegFileChange(slot.id, e.target.files?.[0] || null)}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-                            <span className="absolute bottom-0 inset-x-0 bg-blue-900/85 text-white text-[10px] font-bold text-center py-0.5">
-                              Bagian: {slot.section || 'Belum dinamai'}
-                            </span>
-                          </div>
-                        ) : (
-                          <label className="flex items-center justify-center gap-2 border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-xl p-3 bg-blue-50/30 hover:bg-blue-50 transition-colors cursor-pointer text-xs font-bold text-blue-700">
-                            <Camera className="w-4 h-4 text-blue-600" />
-                            <span>Unggah Foto Checkout "{slot.section || 'Bagian'}"</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              onChange={(e) => handlePulangRegFileChange(slot.id, e.target.files?.[0] || null)}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* ------------------------------------------------------------ */}
-              {/* 2. SEKSI FOTO CHECKOUT ADDITIONAL PER BAGIAN GUDANG           */}
-              {/* ------------------------------------------------------------ */}
-              {(inAddModal > 0 || pulangAdditional > 0) && (
-                <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-amber-900 uppercase flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-600"></span>
-                        Foto Barisan Checkout ADDITIONAL per Bagian
-                      </h4>
-                      <p className="text-[11px] text-amber-700">
-                        {pulangAdditional > 0 ? (
-                          <span className="font-bold text-rose-600">
-                            *Wajib minimal 1 foto barisan checkout untuk {pulangAdditional} orang Additional.
-                          </span>
-                        ) : (
-                          'Tidak ada kepulangan additional.'
-                        )}
-                      </p>
-                    </div>
-                    
-                    {/* Tombol Tambah Bagian Checkout Additional */}
-                    <button
-                      type="button"
-                      onClick={() => handleAddPulangAddSlot()}
-                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah Bagian</span>
-                    </button>
-                  </div>
-
-                  {/* List Slot Foto Checkout Additional */}
-                  {pulangAddPhotoSlots.length === 0 ? (
-                    <div className="p-3.5 bg-white/80 rounded-xl border border-dashed border-amber-300 text-center">
-                      <p className="text-xs text-amber-600 font-medium">
-                        Belum ada slot foto checkout untuk Additional.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleAddPulangAddSlot()}
-                        className="mt-1.5 text-xs font-bold text-amber-700 underline hover:text-amber-900 cursor-pointer flex items-center justify-center gap-1 mx-auto"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah Slot Foto Checkout Additional</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {pulangAddPhotoSlots.map((slot, sIdx) => (
+                <div className="space-y-2">
+                  {pulangRegPhotoSlots.map((slot, index) => (
+                    <div key={slot.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                      {slot.preview ? (
                         <div
-                          key={slot.id}
-                          className="bg-white p-3 rounded-xl border border-amber-200 shadow-xs space-y-2.5"
+                          onClick={() => setLightboxPhoto({ url: slot.preview!, title: `Foto Pulang #${index + 1}` })}
+                          className="w-14 h-14 rounded-lg overflow-hidden border border-indigo-300 shrink-0 cursor-pointer"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 space-y-1.5">
-                              <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wide">
-                                Bagian Kerja #{sIdx + 1}:
-                              </span>
-                              
-                              {/* Quick Chips Preset */}
-                              <div className="flex flex-wrap gap-1">
-                                {SECTION_PRESETS.map((preset) => (
-                                  <button
-                                    type="button"
-                                    key={preset}
-                                    onClick={() => handleUpdatePulangAddSection(slot.id, preset)}
-                                    className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                                      slot.section === preset
-                                        ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-amber-50'
-                                    }`}
-                                  >
-                                    {preset}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Input Teks Manual */}
-                              <input
-                                type="text"
-                                value={slot.section}
-                                onChange={(e) => handleUpdatePulangAddSection(slot.id, e.target.value)}
-                                placeholder="Ketik nama bagian checkout manual..."
-                                className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                              />
-                            </div>
-
-                            {/* Tombol Aksi di Samping Kartu (Tambah & Hapus) */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleAddPulangAddSlot(sIdx)}
-                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
-                                title="Tambah Bagian Baru di Bawah Ini"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Tambah</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePulangAddSlot(slot.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Hapus slot ini"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Upload Foto & Pratinjau */}
-                          {slot.preview ? (
-                            <div className="relative rounded-lg overflow-hidden border border-slate-200 h-28 bg-slate-100 group">
-                              <img
-                                src={slot.preview}
-                                alt={`Checkout ${slot.section}`}
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute top-1.5 right-1.5 flex gap-1">
-                                <label className="bg-slate-900/80 hover:bg-slate-900 text-white rounded-lg px-2 py-1 text-[10px] font-bold cursor-pointer flex items-center gap-1 shadow-xs">
-                                  <Camera className="w-3 h-3" />
-                                  Ganti
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={(e) => handlePulangAddFileChange(slot.id, e.target.files?.[0] || null)}
-                                    className="hidden"
-                                  />
-                                </label>
-                              </div>
-                              <span className="absolute bottom-0 inset-x-0 bg-amber-900/85 text-white text-[10px] font-bold text-center py-0.5">
-                                Bagian: {slot.section || 'Belum dinamai'}
-                              </span>
-                            </div>
-                          ) : (
-                            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-3 bg-amber-50/30 hover:bg-amber-50 transition-colors cursor-pointer text-xs font-bold text-amber-700">
-                              <Camera className="w-4 h-4 text-amber-600" />
-                              <span>Unggah Foto Checkout "{slot.section || 'Bagian'}"</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={(e) => handlePulangAddFileChange(slot.id, e.target.files?.[0] || null)}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
+                          <img src={slot.preview} alt="Preview Pulang" className="w-full h-full object-cover" />
                         </div>
-                      ))}
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0 bg-white">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      <div className="flex-1">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs">
+                          <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                          {slot.preview ? 'Ganti Foto' : 'Ambil Foto Pulang Vendor'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => handlePulangRegFileChange(slot.id, e.target.files?.[0] || null)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {pulangRegPhotoSlots.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePulangRegSlot(slot.id)}
+                          className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              )}
+              </div>
 
-              {/* ------------------------------------------------------------ */}
-              {/* KOTAK PERINGATAN VALIDASI KETAT WAJIB FOTO CHECKOUT           */}
-              {/* ------------------------------------------------------------ */}
-              {!canSubmit && (
-                <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl text-rose-800 space-y-1 text-xs animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-extrabold text-rose-900">
-                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>Validasi Ketat: Syarat Simpan Belum Lengkap!</span>
-                  </div>
-                  <ul className="list-disc list-inside space-y-0.5 text-[11px] font-medium text-rose-700">
-                    {isPulangRegPhotoMissing && (
-                      <li>
-                        <strong>Foto Checkout Regular Wajib:</strong> Ada {pulangRegular} orang Regular pulang tapi belum ada foto barisan checkout.
-                      </li>
-                    )}
-                    {isPulangAddPhotoMissing && (
-                      <li>
-                        <strong>Foto Checkout Additional Wajib:</strong> Ada {pulangAdditional} orang Additional pulang tapi belum ada foto barisan checkout.
-                      </li>
-                    )}
-                    {isTumbangPhotoMissing && (
-                      <li>
-                        <strong>Foto Surat Klinik P3K Wajib:</strong> Tercatat {totalTumbangModal} orang sakit/tumbang, wajib lampirkan foto surat dokter/P3K.
-                      </li>
-                    )}
-                  </ul>
-                  <p className="text-[10px] text-rose-600 italic font-semibold">
-                    *Tombol "Simpan Data Pulang" dikunci hingga foto bukti diunggah.
-                  </p>
-                </div>
-              )}
-
-              {/* Tombol Aksi Form */}
+              {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => setIsVendorModalOpen(false)}
                   className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 text-sm cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={!canSubmit || isSubmitting}
-                  className={`flex-1 py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
-                    canSubmit && !isSubmitting
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
-                  }`}
+                  disabled={isSubmittingVendor}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer"
                 >
-                  {!canSubmit ? (
-                    <>
-                      <Lock className="w-4 h-4 text-slate-400" />
-                      Lengkapi Foto Checkout Dahulu
-                    </>
-                  ) : isSubmitting ? (
-                    'Menyimpan Data...'
-                  ) : (
-                    'Simpan Data Pulang'
-                  )}
+                  {isSubmittingVendor ? 'Menyimpan...' : 'Simpan Checkout Vendor'}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* 4. LIGHTBOX MODAL PREVIEW FOTO FULLSCREEN */}
+      {/* ==================================================================== */}
+      {/* 4. MODAL CHECKOUT REGU UNDER LAPANGAN (SUB-TAB 2)                     */}
+      {/* ==================================================================== */}
+      {isUnderModalOpen && selectedUnder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-lg text-slate-900">
+                  Checkout Regu Under Lapangan
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {selectedUnder.underName} &bull; {selectedUnder.division} (Shift {selectedUnder.shift?.name || 'Pagi'})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsUnderModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUnderCheckoutSubmit} className="space-y-4 mt-4">
+              
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                <span className="font-bold text-slate-700">Pasukan Awal yang Dipegang:</span>
+                <p className="text-slate-800 font-black text-sm mt-0.5">
+                  {selectedUnder.regularCount} Regular + {selectedUnder.additionalCount} Additional = {selectedUnder.totalHeadcount} MP
+                </p>
+              </div>
+
+              {/* Rincian Pulang Under */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200">
+                  <label className="block text-xs font-bold text-blue-800 mb-1">
+                    Pulang Regular (MP):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={underCheckoutReg === 0 ? '' : underCheckoutReg}
+                    onChange={(e) => setUnderCheckoutReg(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-blue-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200">
+                  <label className="block text-xs font-bold text-amber-800 mb-1">
+                    Pulang Additional (MP):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={underCheckoutAdd === 0 ? '' : underCheckoutAdd}
+                    onChange={(e) => setUnderCheckoutAdd(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-amber-300 rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Foto Bukti Apel Kepulangan Regu Bersama Under (WAJIB) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Foto Bukti Apel Kepulangan Bersama Under (Wajib Ber-Timestamp):
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                    * WAJIB
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {underCheckoutPhotoPreview ? (
+                    <div
+                      onClick={() => setLightboxPhoto({ url: underCheckoutPhotoPreview!, title: `Regu Pulang: ${selectedUnder.underName}` })}
+                      className="w-16 h-16 rounded-xl overflow-hidden border border-indigo-300 shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-400 relative group"
+                    >
+                      <img src={underCheckoutPhotoPreview} alt="Preview Regu Pulang" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <ZoomIn className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl border-2 border-dashed border-rose-300 flex items-center justify-center text-rose-400 shrink-0 bg-rose-50/40">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                  )}
+
+                  <div className="flex-1">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs">
+                      <Camera className="w-4 h-4 text-indigo-600" />
+                      {underCheckoutPhotoPreview ? 'Ganti Foto Apel Pulang' : 'Ambil Foto Apel Pulang Regu'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => handleUnderPhotoChange(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                    {underCheckoutPhotoPreview ? (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        <span>TIMESTAMP PULANG TERVERIFIKASI &bull; {selectedDate} {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</span>
+                      </div>
+                    ) : (
+                      <span className="block text-[10px] text-rose-500 font-medium mt-1">
+                        * Under wajib melampirkan foto apel kepulangan regu sebelum menyimpan.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Catatan Selesai Shift */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Catatan Selesai Shift (Opsional):
+                </label>
+                <input
+                  type="text"
+                  value={underCheckoutNotes}
+                  onChange={(e) => setUnderCheckoutNotes(e.target.value)}
+                  placeholder="Misal: Operasional beres, target tercapai aman..."
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              {(() => {
+                const hasPhoto = !!underCheckoutPhotoFile || !!selectedUnder.checkoutPhotoUrl;
+                return (
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsUnderModalOpen(false)}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 text-sm cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!hasPhoto || isSubmittingUnder}
+                      className={`flex-1 py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+                        hasPhoto && !isSubmittingUnder
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
+                      }`}
+                    >
+                      {!hasPhoto ? (
+                        <>
+                          <Lock className="w-4 h-4 text-slate-400" />
+                          Wajib Foto Apel Pulang
+                        </>
+                      ) : isSubmittingUnder ? (
+                        'Menyimpan...'
+                      ) : (
+                        'Simpan Checkout Under'
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 5. LIGHTBOX FULLSCREEN ZOOM PREVIEW                                  */}
+      {/* ==================================================================== */}
       {lightboxPhoto && (
         <div 
           className="fixed inset-0 z-60 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"

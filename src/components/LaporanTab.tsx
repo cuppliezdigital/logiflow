@@ -63,8 +63,8 @@ export default function LaporanTab({
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // State mode tampilan: 'MATRIX' vs 'TABLE' vs 'UNDER' (Distribusi Under Lapangan)
-  const [viewMode, setViewMode] = useState<'MATRIX' | 'TABLE' | 'UNDER'>('MATRIX');
+  // State mode tampilan: 'MATRIX' vs 'DIV_MATRIX' vs 'TABLE' vs 'UNDER'
+  const [viewMode, setViewMode] = useState<'MATRIX' | 'DIV_MATRIX' | 'TABLE' | 'UNDER'>('MATRIX');
   // State filter shift pada tampilan matriks (ALL, atau nama shift spesifik)
   const [matrixShiftFilter, setMatrixShiftFilter] = useState<string>('ALL');
 
@@ -272,9 +272,9 @@ export default function LaporanTab({
       
       {/* 1. BANNER INFORMASI LAPORAN */}
       <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
-        <h2 className="text-base font-bold text-slate-900">FASE 4: Laporan & Validasi Invoice Vendor</h2>
+        <h2 className="text-base font-bold text-slate-900">FASE 5: Laporan Rekapitulasi & Validasi Invoice Vendor</h2>
         <p className="text-xs text-slate-600 mt-0.5">
-          Rekapitulasi terpadu per vendor dan shift. Validasi audit integritas kuota Regular & Additional sebelum penagihan invoice.
+          Rekapitulasi terpadu per vendor dan shift, matriks distribusi divisi operasional, serta validasi audit integritas sebelum penagihan invoice.
         </p>
       </div>
 
@@ -454,7 +454,7 @@ export default function LaporanTab({
               </div>
             )}
 
-            {/* Switcher Tab: Matriks vs Tabel Baris */}
+            {/* Switcher Tab: Matriks vs Matriks Divisi x Vendor vs Tabel vs Under */}
             <div className="bg-slate-200/70 p-1 rounded-xl flex items-center gap-1">
               <button
                 type="button"
@@ -466,7 +466,19 @@ export default function LaporanTab({
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Matriks Report</span>
+                <span>Matriks KPI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('DIV_MATRIX')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'DIV_MATRIX'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>Matriks Divisi x Vendor</span>
               </button>
               <button
                 type="button"
@@ -490,13 +502,187 @@ export default function LaporanTab({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Distribusi Under ({underAssignments.length})</span>
+                <span>Penugasan Under ({underAssignments.length})</span>
               </button>
             </div>
           </div>
         </div>
 
-        {viewMode === 'UNDER' ? (
+        {viewMode === 'DIV_MATRIX' ? (
+          /* ================================================================= */
+          /* TAMPILAN MATRIKS SILANG: DIVISI KERJA X VENDOR (POIN 4)           */
+          /* ================================================================= */
+          <div className="overflow-x-auto p-4 space-y-4">
+            <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex items-center justify-between text-xs text-indigo-950">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  <strong>Matriks Distribusi Divisi x Vendor:</strong> Menampilkan sebaran tenaga kerja Regular & Additional 
+                  pada 5 Divisi Utama (Bongkar, Muat, Sortir A/B/C, FIFO, Repack) berdasarkan vendor penyedia.
+                </span>
+              </div>
+              <span className="text-[10px] font-extrabold bg-indigo-200 text-indigo-900 px-2 py-0.5 rounded">
+                {matrixVendors.length} Vendor Terdaftar
+              </span>
+            </div>
+
+            <div className="inline-block min-w-full align-middle border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+              <table className="min-w-full text-center text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="py-2.5 px-3 bg-slate-800 text-white font-black uppercase text-[11px] text-left w-52 sticky left-0 z-20">
+                      DIVISI OPERASIONAL GUDANG
+                    </th>
+                    <th className="py-2.5 px-3 bg-slate-700 text-slate-200 font-bold uppercase text-[10px] w-28">
+                      KATEGORI
+                    </th>
+                    <th className="py-2.5 px-3 bg-slate-900 text-white font-black text-xs w-28 border-r-2 border-slate-300">
+                      TOTAL GUDANG
+                    </th>
+                    {matrixVendors.map((vName, idx) => {
+                      const colorClass = VENDOR_COLOR_PRESETS[idx % VENDOR_COLOR_PRESETS.length];
+                      return (
+                        <th key={`div-mat-head-${vName}`} className="py-2.5 px-2 bg-slate-100 min-w-[90px] border-r border-slate-200">
+                          <span className={`inline-block px-2 py-1 rounded-md font-black text-[11px] uppercase tracking-wider shadow-2xs ${colorClass}`}>
+                            {vName}
+                          </span>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-200 font-mono">
+                  {[
+                    { key: 'BONGKARAN', name: '1. Divisi Bongkaran', shortName: 'Bongkar', badge: 'bg-blue-600 text-white' },
+                    { key: 'MUATAN', name: '2. Divisi Muatan', shortName: 'Muat', badge: 'bg-amber-600 text-white' },
+                    { key: 'SORTIR_BODEBEK', name: '3.A Sortir Bodebek (A)', shortName: 'Bodebek (A)', badge: 'bg-indigo-600 text-white' },
+                    { key: 'SORTIR_SUMATRAAN', name: '3.B Sortir Sumatraan (B)', shortName: 'Sumatraan (B)', badge: 'bg-purple-600 text-white' },
+                    { key: 'SORTIR_JAKARTA', name: '3.C Sortir Jakarta (C)', shortName: 'Jakarta (C)', badge: 'bg-teal-600 text-white' },
+                    { key: 'FIFO', name: '4. Divisi FIFO', shortName: 'FIFO', badge: 'bg-emerald-600 text-white' },
+                    { key: 'REPACK', name: '5. Divisi Repack', shortName: 'Repack', badge: 'bg-rose-600 text-white' },
+                  ].map((div) => {
+                    const divDirect = (() => {
+                      const items = underAssignments.filter((u: any) => u.division === div.key);
+                      const reg = items.reduce((s: number, u: any) => s + (u.regularCount || 0), 0);
+                      const add = items.reduce((s: number, u: any) => s + (u.additionalCount || 0), 0);
+                      return { reg, add, total: reg + add, underCount: items.length };
+                    })();
+
+                    const getDivVendorCount = (vName: string) => {
+                      let reg = 0;
+                      let add = 0;
+                      underAssignments.forEach((u: any) => {
+                        if (u.division === div.key && u.vendorBreakdownJson) {
+                          try {
+                            const arr = JSON.parse(u.vendorBreakdownJson);
+                            if (Array.isArray(arr)) {
+                              arr.forEach((item: any) => {
+                                if (getShortVendorName(item.vendorName).toLowerCase() === vName.toLowerCase()) {
+                                  reg += (item.regular || 0);
+                                  add += (item.additional || 0);
+                                }
+                              });
+                            }
+                          } catch (e) {}
+                        }
+                      });
+                      return { reg, add, total: reg + add };
+                    };
+
+                    return (
+                      <React.Fragment key={div.key}>
+                        {/* Header Divisi Row */}
+                        <tr className="bg-slate-100 font-sans font-black text-slate-800 text-xs">
+                          <td colSpan={3 + matrixVendors.length} className="py-2 px-3 text-left bg-slate-100 border-b border-slate-200">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 uppercase tracking-wide">
+                                <span className={`w-2.5 h-2.5 rounded-full ${div.badge.split(' ')[0]}`}></span>
+                                {div.name}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-500">
+                                {divDirect.underCount} Regu Under &bull; Total {divDirect.total} MP
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Baris Regular Divisi */}
+                        <tr className="hover:bg-slate-50/50">
+                          <td className="py-2 px-3 text-left font-sans text-blue-900 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                            {div.shortName} - Regular
+                          </td>
+                          <td className="py-2 px-3 font-sans text-blue-700 font-bold text-xs bg-blue-50/30">
+                            Reg
+                          </td>
+                          <td className="py-2 px-3 font-black text-blue-700 bg-blue-50/40 border-r-2 border-slate-300">
+                            {divDirect.reg}
+                          </td>
+                          {matrixVendors.map((vName) => {
+                            const vc = getDivVendorCount(vName);
+                            return (
+                              <td key={`div-reg-${div.key}-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                                <span className={vc.reg > 0 ? 'text-blue-700 font-bold' : 'text-slate-300'}>
+                                  {vc.reg > 0 ? vc.reg : '-'}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* Baris Additional Divisi */}
+                        <tr className="hover:bg-slate-50/50">
+                          <td className="py-2 px-3 text-left font-sans text-amber-900 font-semibold text-xs sticky left-0 z-10 bg-white border-r border-slate-200">
+                            {div.shortName} - Additional
+                          </td>
+                          <td className="py-2 px-3 font-sans text-amber-700 font-bold text-xs bg-amber-50/30">
+                            Add
+                          </td>
+                          <td className="py-2 px-3 font-black text-amber-700 bg-amber-50/40 border-r-2 border-slate-300">
+                            {divDirect.add}
+                          </td>
+                          {matrixVendors.map((vName) => {
+                            const vc = getDivVendorCount(vName);
+                            return (
+                              <td key={`div-add-${div.key}-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                                <span className={vc.add > 0 ? 'text-amber-700 font-bold' : 'text-slate-300'}>
+                                  {vc.add > 0 ? vc.add : '-'}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {/* Baris Total Divisi */}
+                        <tr className="bg-slate-50/80 font-black border-b-2 border-slate-300">
+                          <td className="py-2 px-3 text-left font-sans font-black text-slate-900 text-xs sticky left-0 z-10 bg-slate-50 border-r border-slate-200">
+                            Subtotal {div.shortName}
+                          </td>
+                          <td className="py-2 px-3 font-sans font-black text-slate-800 text-xs bg-slate-100">
+                            TOTAL
+                          </td>
+                          <td className="py-2 px-3 font-black text-slate-900 bg-slate-100 border-r-2 border-slate-300">
+                            {divDirect.total} MP
+                          </td>
+                          {matrixVendors.map((vName) => {
+                            const vc = getDivVendorCount(vName);
+                            return (
+                              <td key={`div-tot-${div.key}-${vName}`} className="py-2 px-2 border-r border-slate-200">
+                                <span className={vc.total > 0 ? 'text-slate-900 font-black' : 'text-slate-300'}>
+                                  {vc.total > 0 ? vc.total : '-'}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : viewMode === 'UNDER' ? (
           /* ================================================================= */
           /* TAMPILAN REKAP DISTRIBUSI POS & UNDER LAPANGAN                    */
           /* ================================================================= */

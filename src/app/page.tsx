@@ -13,9 +13,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import PlotinganTab from '@/components/PlotinganTab';
 import AbsenMasukTab from '@/components/AbsenMasukTab';
+import TumbangTab from '@/components/TumbangTab';
 import AbsenPulangTab from '@/components/AbsenPulangTab';
 import LaporanTab from '@/components/LaporanTab';
-import { getMasterData, getPlotingans } from '@/app/actions';
+import { getMasterData, getPlotingans, getTumbangIncidents } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
 
 export default function Home() {
@@ -28,8 +29,8 @@ export default function Home() {
     return new Date().toISOString().split('T')[0];
   });
 
-  // Tab yang sedang aktif dibuka pengguna: 'plotingan' | 'masuk' | 'pulang' | 'laporan'
-  const [activeTab, setActiveTab] = useState<'plotingan' | 'masuk' | 'pulang' | 'laporan'>('plotingan');
+  // Tab yang sedang aktif dibuka pengguna: 'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan'
+  const [activeTab, setActiveTab] = useState<'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan'>('plotingan');
 
   // Master data: daftar vendor aktif dan shift kerja (Shift Pagi & Shift Malam)
   const [vendors, setVendors] = useState<any[]>([]);
@@ -38,6 +39,9 @@ export default function Home() {
   // Data transaksi plotingan pada tanggal yang dipilih
   const [plotingans, setPlotingans] = useState<any[]>([]);
 
+  // Data insiden pekerja tumbang / sakit / izin hari ini
+  const [tumbangIncidents, setTumbangIncidents] = useState<any[]>([]);
+
   // Status loading indikator data
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -45,13 +49,17 @@ export default function Home() {
   // DATA FETCHING & SYNCHRONIZATION
   // --------------------------------------------------------------------------
 
-  // Fungsi untuk mengambil data plotingan berdasarkan tanggal terpilih
+  // Fungsi untuk mengambil data plotingan dan tumbang berdasarkan tanggal terpilih
   const loadPlotinganData = useCallback(async (date: string) => {
     try {
-      const data = await getPlotingans(date);
-      setPlotingans(data);
+      const [plotData, incidentData] = await Promise.all([
+        getPlotingans(date),
+        getTumbangIncidents(date)
+      ]);
+      setPlotingans(plotData);
+      setTumbangIncidents(incidentData);
     } catch (err) {
-      console.error('Gagal mengambil data plotingan:', err);
+      console.error('Gagal mengambil data operasional:', err);
     }
   }, []);
 
@@ -107,12 +115,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       
-      {/* 1. HEADER & NAVIGASI TAB */}
+      {/* 1. HEADER & NAVIGASI TAB (5 FASE) */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         selectedDate={selectedDate}
         setSelectedDate={handleDateChange}
+        tumbangCount={tumbangIncidents.length}
       />
 
       {/* 2. KONTEN UTAMA SESUAI TAB AKTIF */}
@@ -125,7 +134,7 @@ export default function Home() {
           </div>
         ) : (
           <div>
-            {/* TAB 1: MODUL PLOTINGAN (TARGET HEADCOUNT H-1 & KELOLA VENDOR) */}
+            {/* FASE 1: MODUL PLOTINGAN (TARGET HEADCOUNT H-1 & KELOLA VENDOR) */}
             {activeTab === 'plotingan' && (
               <PlotinganTab
                 plotingans={plotingans}
@@ -137,7 +146,7 @@ export default function Home() {
               />
             )}
 
-            {/* TAB 2: MODUL ABSEN MASUK (SERAH TERIMA PASUKAN SHIFT) */}
+            {/* FASE 2: MODUL ABSEN MASUK & DISTRIBUSI POS UNDER LAPANGAN */}
             {activeTab === 'masuk' && (
               <AbsenMasukTab
                 plotingans={plotingans}
@@ -147,16 +156,29 @@ export default function Home() {
               />
             )}
 
-            {/* TAB 3: MODUL ABSEN PULANG & AUDIT INTEGRITAS */}
-            {activeTab === 'pulang' && (
-              <AbsenPulangTab
-                plotingans={plotingans}
+            {/* FASE 3: MODUL LIVE TUMBANG & KENDALA (LAPORAN ATASAN REAL-TIME) */}
+            {activeTab === 'tumbang' && (
+              <TumbangTab
+                incidents={tumbangIncidents}
+                shifts={shifts}
+                vendors={vendors}
                 selectedDate={selectedDate}
                 onRefresh={handleRefresh}
               />
             )}
 
-            {/* TAB 4: MODUL LAPORAN KPI & EXCEL INVOICE */}
+            {/* FASE 4: MODUL ABSEN PULANG & REKONSILIASI KEPULANGAN */}
+            {activeTab === 'pulang' && (
+              <AbsenPulangTab
+                plotingans={plotingans}
+                shifts={shifts}
+                tumbangIncidents={tumbangIncidents}
+                selectedDate={selectedDate}
+                onRefresh={handleRefresh}
+              />
+            )}
+
+            {/* FASE 5: MODUL LAPORAN KPI, MATRIKS DISTRIBUSI & INVOICE */}
             {activeTab === 'laporan' && (
               <LaporanTab
                 vendors={vendors}

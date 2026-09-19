@@ -54,13 +54,14 @@ import {
   submitAbsenMasuk, 
   saveUnderAssignment, 
   deleteUnderAssignment, 
-  getUnderAssignments 
+  getUnderAssignments,
+  submitLateArrival
 } from '@/app/actions';
 import { compressImage } from '@/lib/compressImage';
 import { getShortVendorName } from '@/lib/vendorMapping';
 
-// Daftar opsi preset area kerja / bagian gudang standar untuk serah terima vendor
-const SECTION_PRESETS = ['Foto Full Vendor', 'Bongkar', 'Muat', 'Sortir', 'Repack', 'FIFO'];
+// Daftar opsi preset foto kontingen vendor (cukup foto utuh kontingen vendor tanpa wajib memecah per divisi)
+const SECTION_PRESETS = ['Foto Full Vendor', 'Foto Kontingen Tambahan'];
 
 // Definisi 5 Divisi Utama Operasional Pergudangan J&T & Sub-Jalur Sortir
 export const DIVISION_DEFINITIONS = [
@@ -88,39 +89,39 @@ export const DIVISION_DEFINITIONS = [
   },
   { 
     key: 'SORTIR_BODEBEK', 
-    name: 'Sortir - Jalur Bodebek', 
-    shortName: 'Bodebek',
+    name: 'Sortir Bodebek (A)', 
+    shortName: 'Bodebek (A)', 
     group: 'SORTIR', 
     lane: 'BODEBEK',
     icon: Layers, 
     borderAccent: 'border-indigo-200 hover:border-indigo-400',
     bgHeader: 'bg-indigo-50/80 text-indigo-900',
     badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    desc: 'Sortir tujuan Bogor, Depok, Bekasi' 
+    desc: 'Jalur 1: Sortir Bodebek (A)' 
   },
   { 
     key: 'SORTIR_SUMATRAAN', 
-    name: 'Sortir - Jalur Sumatraan', 
-    shortName: 'Sumatraan',
+    name: 'Sortir Sumatraan (B)', 
+    shortName: 'Sumatraan (B)', 
     group: 'SORTIR', 
     lane: 'SUMATRAAN',
     icon: Layers, 
     borderAccent: 'border-purple-200 hover:border-purple-400',
     bgHeader: 'bg-purple-50/80 text-purple-900',
     badgeStyle: 'bg-purple-100 text-purple-800 border-purple-200',
-    desc: 'Sortir paket rute Pulau Sumatra' 
+    desc: 'Jalur 2: Sortir Sumatraan (B)' 
   },
   { 
     key: 'SORTIR_JAKARTA', 
-    name: 'Sortir - Jalur Jakarta', 
-    shortName: 'Jakarta',
+    name: 'Sortir Jakarta (C)', 
+    shortName: 'Jakarta (C)', 
     group: 'SORTIR', 
     lane: 'JAKARTA',
     icon: Layers, 
     borderAccent: 'border-teal-200 hover:border-teal-400',
     bgHeader: 'bg-teal-50/80 text-teal-900',
     badgeStyle: 'bg-teal-100 text-teal-800 border-teal-200',
-    desc: 'Sortir paket rute DKI Jakarta' 
+    desc: 'Jalur 3: Sortir Jakarta (C)' 
   },
   { 
     key: 'FIFO', 
@@ -207,7 +208,21 @@ export default function AbsenMasukTab({
   const [modalPhotoFile, setModalPhotoFile] = useState<File | null>(null);
   const [modalPhotoPreview, setModalPhotoPreview] = useState<string | null>(null);
   const [modalNotes, setModalNotes] = useState<string>('');
+  const [modalVendorBreakdown, setModalVendorBreakdown] = useState<Array<{ vendorId: string; vendorName: string; regular: number; additional: number }>>([]);
   const [isSubmittingUnder, setIsSubmittingUnder] = useState<boolean>(false);
+
+  // --------------------------------------------------------------------------
+  // 3.B STATE MODAL INPUT SUSULAN / TELAT VENDOR
+  // --------------------------------------------------------------------------
+  const [isLateModalOpen, setIsLateModalOpen] = useState<boolean>(false);
+  const [selectedLatePlotingan, setSelectedLatePlotingan] = useState<any | null>(null);
+  const [lateRegular, setLateRegular] = useState<number>(0);
+  const [lateAdditional, setLateAdditional] = useState<number>(0);
+  const [lateTime, setLateTime] = useState<string>('');
+  const [lateNotes, setLateNotes] = useState<string>('');
+  const [latePhotoFile, setLatePhotoFile] = useState<File | null>(null);
+  const [latePhotoPreview, setLatePhotoPreview] = useState<string | null>(null);
+  const [isSubmittingLate, setIsSubmittingLate] = useState<boolean>(false);
 
   // --------------------------------------------------------------------------
   // 4. STATE LIGHTBOX ZOOM PREVIEW FOTO
@@ -459,6 +474,10 @@ export default function AbsenMasukTab({
   // --------------------------------------------------------------------------
   // 8. EVENT HANDLER MODAL UNDER LAPANGAN (SUB-TAB 2)
   // --------------------------------------------------------------------------
+  const activeVendors = Array.from(
+    new Map(plotingans.map((p) => [p.vendor.id, { id: p.vendor.id, name: p.vendor.name }])).values()
+  );
+
   const handleOpenAddUnder = (defaultDiv?: string) => {
     setEditingUnder(null);
     const initialShiftId = (underShiftFilter !== 'ALL' ? underShiftFilter : availableShifts[0]?.id) || '';
@@ -470,6 +489,7 @@ export default function AbsenMasukTab({
     setModalPhotoFile(null);
     setModalPhotoPreview(null);
     setModalNotes('');
+    setModalVendorBreakdown([]);
     setIsUnderModalOpen(true);
   };
 
@@ -483,7 +503,47 @@ export default function AbsenMasukTab({
     setModalPhotoFile(null);
     setModalPhotoPreview(u.photoUrl || null);
     setModalNotes(u.notes || '');
+
+    let breakdown: any[] = [];
+    if (u.vendorBreakdownJson) {
+      try {
+        breakdown = JSON.parse(u.vendorBreakdownJson);
+      } catch (e) {}
+    }
+    setModalVendorBreakdown(Array.isArray(breakdown) ? breakdown : []);
     setIsUnderModalOpen(true);
+  };
+
+  const handleAddVendorBreakdown = () => {
+    const defaultVendor = activeVendors[0] || { id: 'generic', name: 'Vendor Lapangan' };
+    setModalVendorBreakdown((prev) => [
+      ...prev,
+      { vendorId: defaultVendor.id, vendorName: defaultVendor.name, regular: 0, additional: 0 }
+    ]);
+  };
+
+  const handleRemoveVendorBreakdown = (index: number) => {
+    setModalVendorBreakdown((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateVendorBreakdown = (index: number, field: string, value: any) => {
+    setModalVendorBreakdown((prev) => {
+      const updated = [...prev];
+      if (field === 'vendorId') {
+        const found = activeVendors.find((v) => v.id === value);
+        updated[index] = { ...updated[index], vendorId: value, vendorName: found ? found.name : value };
+      } else {
+        updated[index] = { ...updated[index], [field]: parseInt(value, 10) || 0 };
+      }
+      return updated;
+    });
+  };
+
+  const handleApplyBreakdownTotals = () => {
+    const totalReg = modalVendorBreakdown.reduce((sum, item) => sum + (item.regular || 0), 0);
+    const totalAdd = modalVendorBreakdown.reduce((sum, item) => sum + (item.additional || 0), 0);
+    setModalRegularCount(totalReg);
+    setModalAdditionalCount(totalAdd);
   };
 
   const handleModalPhotoChange = async (file: File | null) => {
@@ -505,6 +565,11 @@ export default function AbsenMasukTab({
       return;
     }
 
+    if (!modalPhotoFile && !editingUnder?.photoUrl) {
+      alert('Foto bukti apel regu bersama Under WAJIB dilampirkan!');
+      return;
+    }
+
     try {
       setIsSubmittingUnder(true);
       const fd = new FormData();
@@ -518,6 +583,10 @@ export default function AbsenMasukTab({
       fd.append('regularCount', modalRegularCount.toString());
       fd.append('additionalCount', modalAdditionalCount.toString());
       if (modalNotes.trim()) fd.append('notes', modalNotes.trim());
+
+      if (modalVendorBreakdown.length > 0) {
+        fd.append('vendorBreakdownJson', JSON.stringify(modalVendorBreakdown));
+      }
 
       if (modalPhotoFile) {
         fd.append('photo', modalPhotoFile);
@@ -537,6 +606,62 @@ export default function AbsenMasukTab({
       alert('Gagal menyimpan under: ' + err.message);
     } finally {
       setIsSubmittingUnder(false);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // 8.B EVENT HANDLER MODAL SUSULAN / TELAT VENDOR
+  // --------------------------------------------------------------------------
+  const handleOpenLateModal = (plot: any) => {
+    setSelectedLatePlotingan(plot);
+    setLateRegular(0);
+    setLateAdditional(0);
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    setLateTime(`${hh}:${mm}`);
+    setLateNotes('');
+    setLatePhotoFile(null);
+    setLatePhotoPreview(null);
+    setIsLateModalOpen(true);
+  };
+
+  const handleLatePhotoChange = async (file: File | null) => {
+    if (!file) return;
+    const compressed = await compressImage(file);
+    setLatePhotoFile(compressed);
+    setLatePhotoPreview(URL.createObjectURL(compressed));
+  };
+
+  const handleSaveLate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLatePlotingan) return;
+    const totalLate = lateRegular + lateAdditional;
+    if (totalLate <= 0) {
+      alert('Jumlah pekerja susulan minimal 1 orang (Regular atau Additional).');
+      return;
+    }
+    try {
+      setIsSubmittingLate(true);
+      const fd = new FormData();
+      fd.append('plotinganId', selectedLatePlotingan.id);
+      fd.append('regular', lateRegular.toString());
+      fd.append('additional', lateAdditional.toString());
+      fd.append('time', lateTime);
+      if (lateNotes.trim()) fd.append('notes', lateNotes.trim());
+      if (latePhotoFile) fd.append('photo', latePhotoFile);
+
+      const res = await submitLateArrival(fd);
+      if (res.success) {
+        setIsLateModalOpen(false);
+        onRefresh();
+      } else {
+        alert('Gagal: ' + (res.error || 'Terjadi kesalahan saat simpan susulan.'));
+      }
+    } catch (err: any) {
+      alert('Gagal menyimpan susulan: ' + err.message);
+    } finally {
+      setIsSubmittingLate(false);
     }
   };
 
@@ -937,22 +1062,74 @@ export default function AbsenMasukTab({
                             </div>
                           </div>
                         )}
+
+                        {/* Riwayat Susulan / Telat Vendor Jika Ada */}
+                        {hasCheckedIn && p.attendanceIn?.lateArrivalsJson && (() => {
+                          let lateList: any[] = [];
+                          try {
+                            lateList = JSON.parse(p.attendanceIn.lateArrivalsJson);
+                          } catch (e) {}
+                          if (Array.isArray(lateList) && lateList.length > 0) {
+                            const totalLate = lateList.reduce((s: number, l: any) => s + (l.total || (l.regular || 0) + (l.additional || 0)), 0);
+                            return (
+                              <div className="bg-amber-50/90 rounded-xl p-2.5 border border-amber-200 text-xs">
+                                <div className="flex items-center justify-between text-amber-900 font-bold">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                    Pekerja Susulan / Telat:
+                                  </span>
+                                  <span className="bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded font-black text-[10px]">
+                                    +{totalLate} MP
+                                  </span>
+                                </div>
+                                <div className="mt-1 space-y-0.5 text-[11px] text-amber-800 divide-y divide-amber-100">
+                                  {lateList.map((l: any, lIdx: number) => (
+                                    <div key={lIdx} className="flex items-center justify-between pt-1">
+                                      <span>Jam {l.time} &bull; +{l.regular || 0} Reg, +{l.additional || 0} Add</span>
+                                      {l.notes && <span className="italic text-[10px] text-amber-700">"{l.notes}"</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
                       </div>
                     </div>
 
-                    {/* Tombol Input/Edit Absen Masuk */}
-                    <div className="p-4 pt-0">
-                      <button
-                        onClick={() => handleOpenVendorModal(p)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          hasCheckedIn
-                            ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                        }`}
-                      >
-                        <LogIn className="w-3.5 h-3.5" />
-                        {hasCheckedIn ? 'Edit Absen Masuk & Foto' : 'Input Absen Masuk (Wajib Foto)'}
-                      </button>
+                    {/* Tombol Input/Edit Absen Masuk & Input Susulan */}
+                    <div className="p-4 pt-0 space-y-2">
+                      {hasCheckedIn ? (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenVendorModal(p)}
+                            className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            Edit Absen
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenLateModal(p)}
+                            className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-amber-600" />
+                            + Susulan / Telat
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenVendorModal(p)}
+                          className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                        >
+                          <LogIn className="w-3.5 h-3.5" />
+                          Input Absen Masuk (Wajib Foto)
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1207,7 +1384,7 @@ export default function AbsenMasukTab({
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
                           <h3 className="text-xs font-black text-indigo-950 uppercase tracking-wider">
-                            Jalur 1: Sortir BODEBEK (Bogor - Depok - Bekasi)
+                            JALUR 1: SORTIR BODEBEK (A)
                           </h3>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
                             {bodebekItems.reduce((s, u) => s + u.totalHeadcount, 0)} Orang
@@ -1218,12 +1395,12 @@ export default function AbsenMasukTab({
                           onClick={() => handleOpenAddUnder('SORTIR_BODEBEK')}
                           className="text-[11px] font-bold text-indigo-700 hover:underline flex items-center gap-1 cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" /> Tambah Regu Bodebek
+                          <Plus className="w-3 h-3" /> Tambah Regu Bodebek (A)
                         </button>
                       </div>
 
                       {bodebekItems.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic py-2">Belum ada regu Under di Jalur Bodebek.</p>
+                        <p className="text-xs text-slate-400 italic py-2">Belum ada regu Under di Jalur Bodebek (A).</p>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                           {bodebekItems.map((u) => renderUnderCard(u))}
@@ -1237,7 +1414,7 @@ export default function AbsenMasukTab({
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
                           <h3 className="text-xs font-black text-purple-950 uppercase tracking-wider">
-                            Jalur 2: Sortir SUMATRAAN (Paket Pulau Sumatra)
+                            JALUR 2: SORTIR SUMATRAAN (B)
                           </h3>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
                             {sumatraanItems.reduce((s, u) => s + u.totalHeadcount, 0)} Orang
@@ -1248,12 +1425,12 @@ export default function AbsenMasukTab({
                           onClick={() => handleOpenAddUnder('SORTIR_SUMATRAAN')}
                           className="text-[11px] font-bold text-purple-700 hover:underline flex items-center gap-1 cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" /> Tambah Regu Sumatraan
+                          <Plus className="w-3 h-3" /> Tambah Regu Sumatraan (B)
                         </button>
                       </div>
 
                       {sumatraanItems.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic py-2">Belum ada regu Under di Jalur Sumatraan.</p>
+                        <p className="text-xs text-slate-400 italic py-2">Belum ada regu Under di Jalur Sumatraan (B).</p>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                           {sumatraanItems.map((u) => renderUnderCard(u))}
@@ -1267,7 +1444,7 @@ export default function AbsenMasukTab({
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-teal-600"></span>
                           <h3 className="text-xs font-black text-teal-950 uppercase tracking-wider">
-                            Jalur 3: Sortir JAKARTA (Paket DKI Jakarta)
+                            JALUR 3: SORTIR JAKARTA (C)
                           </h3>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
                             {jakartaItems.reduce((s, u) => s + u.totalHeadcount, 0)} Orang
@@ -1548,24 +1725,6 @@ export default function AbsenMasukTab({
                         )}
                       </div>
 
-                      {/* Quick Preset Buttons */}
-                      <div className="flex flex-wrap gap-1">
-                        {SECTION_PRESETS.map((sec) => (
-                          <button
-                            key={sec}
-                            type="button"
-                            onClick={() => handleUpdateRegularSection(slot.id, sec)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer ${
-                              slot.section === sec
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
-                            }`}
-                          >
-                            {sec}
-                          </button>
-                        ))}
-                      </div>
-
                       {/* Preview & File Input */}
                       <div className="flex items-center gap-3 pt-1">
                         {slot.preview ? (
@@ -1800,24 +1959,115 @@ export default function AbsenMasukTab({
                 </div>
               </div>
 
-              {/* Foto Regu Bersama Under */}
+              {/* Rincian Pasukan per Vendor */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                    Rincian Asal Vendor Pasukan (Opsional):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddVendorBreakdown}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-white px-2 py-0.5 rounded border border-indigo-200"
+                  >
+                    <Plus className="w-3 h-3" /> + Vendor
+                  </button>
+                </div>
+
+                {modalVendorBreakdown.length > 0 ? (
+                  <div className="space-y-2">
+                    {modalVendorBreakdown.map((item, idx) => (
+                      <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-xs">
+                        <select
+                          value={item.vendorId}
+                          onChange={(e) => handleUpdateVendorBreakdown(idx, 'vendorId', e.target.value)}
+                          className="flex-1 text-xs font-bold bg-slate-50 border border-slate-200 rounded p-1.5"
+                        >
+                          {activeVendors.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {getShortVendorName(v.name)} ({v.name})
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-blue-700">Reg:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.regular === 0 ? '' : item.regular}
+                              onChange={(e) => handleUpdateVendorBreakdown(idx, 'regular', e.target.value)}
+                              placeholder="0"
+                              className="w-14 text-center font-bold border border-blue-200 rounded p-1 bg-blue-50/50"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-amber-700">Add:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.additional === 0 ? '' : item.additional}
+                              onChange={(e) => handleUpdateVendorBreakdown(idx, 'additional', e.target.value)}
+                              placeholder="0"
+                              className="w-14 text-center font-bold border border-amber-200 rounded p-1 bg-amber-50/50"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVendorBreakdown(idx)}
+                            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-slate-500">
+                        Total dari rincian: {modalVendorBreakdown.reduce((s, b) => s + (b.regular || 0) + (b.additional || 0), 0)} MP
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleApplyBreakdownTotals}
+                        className="text-[11px] font-bold text-indigo-700 hover:underline cursor-pointer"
+                      >
+                        Terapkan ke Total Jumlah Anak
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic">
+                    Belum ada rincian vendor. Klik "+ Vendor" jika ingin mencatat anak regu ini berasal dari vendor mana saja.
+                  </p>
+                )}
+              </div>
+
+              {/* Foto Regu Bersama Under (WAJIB DENGAN TIMESTAMP) */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Foto Bukti Regu Bersama Under (Kamera / Galeri):
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Foto Bukti Apel Regu Bersama Under (Wajib Ber-Timestamp):
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                    * WAJIB
+                  </span>
+                </div>
                 <div className="flex items-center gap-3">
                   {modalPhotoPreview ? (
-                    <div
-                      onClick={() => setLightboxPhoto({ url: modalPhotoPreview!, title: `Regu: ${modalUnderName}` })}
-                      className="w-16 h-16 rounded-xl overflow-hidden border border-indigo-300 shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-400 relative group"
-                    >
-                      <img src={modalPhotoPreview} alt="Preview Regu" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <ZoomIn className="w-4 h-4 text-white" />
+                    <div className="flex flex-col items-center">
+                      <div
+                        onClick={() => setLightboxPhoto({ url: modalPhotoPreview!, title: `Regu: ${modalUnderName}` })}
+                        className="w-16 h-16 rounded-xl overflow-hidden border border-indigo-300 shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-400 relative group"
+                      >
+                        <img src={modalPhotoPreview} alt="Preview Regu" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <ZoomIn className="w-4 h-4 text-white" />
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0 bg-slate-50">
+                    <div className="w-16 h-16 rounded-xl border-2 border-dashed border-rose-300 flex items-center justify-center text-rose-400 shrink-0 bg-rose-50/40">
                       <Camera className="w-6 h-6" />
                     </div>
                   )}
@@ -1834,9 +2084,16 @@ export default function AbsenMasukTab({
                         className="hidden"
                       />
                     </label>
-                    <span className="block text-[10px] text-slate-400 mt-1">
-                      Foto otomatis dikompres sebelum disimpan ke server
-                    </span>
+                    {modalPhotoPreview ? (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        <span>TIMESTAMP TERVERIFIKASI &bull; {selectedDate} {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</span>
+                      </div>
+                    ) : (
+                      <span className="block text-[10px] text-rose-500 font-medium mt-1">
+                        * Under wajib melampirkan foto apel regu bersama sebelum menyimpan.
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1856,23 +2113,200 @@ export default function AbsenMasukTab({
               </div>
 
               {/* Action Buttons */}
+              {(() => {
+                const hasUnderPhoto = !!modalPhotoFile || !!editingUnder?.photoUrl;
+                const canSubmitUnder = hasUnderPhoto && modalShiftId && modalDivision && modalUnderName.trim() && (modalRegularCount + modalAdditionalCount > 0);
+
+                return (
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsUnderModalOpen(false)}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 text-sm cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!canSubmitUnder || isSubmittingUnder}
+                      className={`flex-1 py-2.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md transition-all ${
+                        canSubmitUnder && !isSubmittingUnder
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
+                      }`}
+                    >
+                      {!hasUnderPhoto ? (
+                        <>
+                          <Lock className="w-4 h-4 text-slate-400" />
+                          Wajib Foto Regu
+                        </>
+                      ) : isSubmittingUnder ? (
+                        'Menyimpan...'
+                      ) : editingUnder ? (
+                        'Update Regu Under'
+                      ) : (
+                        'Simpan Regu Under'
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 4.B MODAL INPUT SUSULAN / TELAT VENDOR                                */}
+      {/* ==================================================================== */}
+      {isLateModalOpen && selectedLatePlotingan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-lg text-slate-900 flex items-center gap-1.5">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                  Input Pekerja Susulan / Telat
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {getShortVendorName(selectedLatePlotingan.vendor.name)} &bull; Shift {selectedLatePlotingan.shift.name} ({selectedDate})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsLateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLate} className="space-y-4 mt-4">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                <p className="font-bold flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  Pencatatan Kedatangan Susulan:
+                </p>
+                <p className="text-[11px] text-amber-800 mt-1">
+                  Input ini untuk pekerja yang tiba telat 1-2 orang di tengah shift. Angka akan otomatis menambah total hadir dan tersimpan dalam rekapitulasi audit.
+                </p>
+              </div>
+
+              {/* Jumlah Susulan */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200">
+                  <label className="block text-xs font-bold text-blue-800 mb-1">
+                    Susulan Regular (Org):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={lateRegular === 0 ? '' : lateRegular}
+                    onChange={(e) => setLateRegular(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-blue-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200">
+                  <label className="block text-xs font-bold text-amber-800 mb-1">
+                    Susulan Additional (Org):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={lateAdditional === 0 ? '' : lateAdditional}
+                    onChange={(e) => setLateAdditional(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0"
+                    className="w-full text-base font-black text-slate-900 bg-white border border-amber-300 rounded-lg p-2 focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Jam Tiba */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Jam Kedatangan di Lapangan:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={lateTime}
+                  onChange={(e) => setLateTime(e.target.value)}
+                  placeholder="07:30"
+                  className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+
+              {/* Catatan / Alasan Telat */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Catatan / Alasan Keterlambatan:
+                </label>
+                <input
+                  type="text"
+                  value={lateNotes}
+                  onChange={(e) => setLateNotes(e.target.value)}
+                  placeholder="Misal: Kendala angkot, baru tiba dari Bogor..."
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+
+              {/* Foto Bukti Susulan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Foto Bukti Hadir Pos / Gerbang (Opsional):
+                </label>
+                <div className="flex items-center gap-3">
+                  {latePhotoPreview ? (
+                    <div
+                      onClick={() => setLightboxPhoto({ url: latePhotoPreview!, title: `Susulan: ${selectedLatePlotingan.vendor.name}` })}
+                      className="w-14 h-14 rounded-xl overflow-hidden border border-amber-300 shrink-0 cursor-pointer"
+                    >
+                      <img src={latePhotoPreview} alt="Preview Susulan" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0 bg-slate-50">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs">
+                      <Camera className="w-3.5 h-3.5 text-amber-600" />
+                      {latePhotoPreview ? 'Ganti Foto' : 'Ambil Foto Susulan'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => handleLatePhotoChange(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsUnderModalOpen(false)}
+                  onClick={() => setIsLateModalOpen(false)}
                   className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 text-sm cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingUnder}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer"
+                  disabled={lateRegular + lateAdditional <= 0 || isSubmittingLate}
+                  className={`flex-1 py-2.5 font-bold rounded-xl text-sm transition-all shadow-md ${
+                    lateRegular + lateAdditional > 0 && !isSubmittingLate
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white cursor-pointer'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
+                  }`}
                 >
-                  {isSubmittingUnder ? 'Menyimpan...' : editingUnder ? 'Update Regu' : 'Simpan Regu Under'}
+                  {isSubmittingLate ? 'Menyimpan...' : 'Simpan Pekerja Susulan'}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
