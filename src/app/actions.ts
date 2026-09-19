@@ -338,6 +338,25 @@ export async function deletePlotingan(id: string) {
   return { success: true };
 }
 
+export async function deleteMultiplePlotingans(ids: string[]) {
+  if (!ids || ids.length === 0) return { success: true };
+  await prisma.plotingan.deleteMany({
+    where: {
+      id: { in: ids },
+    },
+  });
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function getDatesWithData(): Promise<string[]> {
+  const plots = await prisma.plotingan.findMany({
+    select: { date: true },
+    distinct: ['date'],
+  });
+  return plots.map((p) => p.date);
+}
+
 // ============================================================================
 // FUNGSI BARU: SIMPAN PLOTINGAN SEKALIGUS (BATCH UPSERT MASSAL)
 // Memungkinkan supervisor gudang menginput seluruh vendor dalam 1 kali simpan.

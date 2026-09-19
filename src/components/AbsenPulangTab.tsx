@@ -458,7 +458,7 @@ export default function AbsenPulangTab({
               }`}
             >
               <Building2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>1. Kepulangan Vendor</span>
+              <span>1. Serah Terima Out Vendor</span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800">
                 {totalVendorPulangTotal} MP
               </span>
@@ -474,7 +474,7 @@ export default function AbsenPulangTab({
               }`}
             >
               <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-              <span>2. Kepulangan Under</span>
+              <span>2. Distribusi Out PIC Lapangan</span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
                 {totalUnderPulangTotal} MP
               </span>
@@ -651,8 +651,8 @@ export default function AbsenPulangTab({
                       {relatedTumbang.length > 0 && (
                         <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-800 space-y-1">
                           <div className="flex items-center justify-between font-bold">
-                            <span className="flex items-center gap-1">
-                              <HeartPulse className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
                               Data Tumbang Shift Ini:
                             </span>
                             <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded text-[10px] font-black">
@@ -926,36 +926,30 @@ export default function AbsenPulangTab({
                 </div>
               </div>
 
-              {/* Rincian Tumbang Terhubung */}
-              <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200 space-y-2">
-                <div className="flex items-center justify-between text-xs text-rose-900 font-bold">
-                  <span className="flex items-center gap-1">
-                    <HeartPulse className="w-4 h-4 text-rose-600" />
-                    Pekerja Tumbang / Izin di Jam Kerja:
+              {/* Rincian Tumbang Terhubung (Terkunci / Read-Only Display Resmi PIC) */}
+              <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-200/80 space-y-2">
+                <div className="flex items-center justify-between text-xs text-amber-950 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-700" />
+                    Pekerja Tumbang / Izin (Rekaman Resmi PIC Lapangan):
                   </span>
-                  <span>Total: {tumbangRegular + tumbangAdditional} Orang</span>
+                  <span className="bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded text-[11px] font-black">
+                    Total: {tumbangRegular + tumbangAdditional} Orang
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <label className="block text-[11px] font-bold text-rose-800 mb-0.5">Tumbang Regular:</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tumbangRegular}
-                      onChange={(e) => setTumbangRegular(parseInt(e.target.value, 10) || 0)}
-                      className="w-full text-sm font-black p-1.5 rounded-lg border border-rose-300 bg-white"
-                    />
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Data tumbang terkunci otomatis sesuai rekap PIC di Fase 3 Live Tumbang demi integritas absensi. Vendor tidak dapat mengubah angka ini.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-white/80 border border-amber-200 rounded-lg p-2 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-600">Tumbang Reguler:</span>
+                    <span className="text-sm font-black text-amber-900">{tumbangRegular} Orang</span>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-rose-800 mb-0.5">Tumbang Additional:</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={tumbangAdditional}
-                      onChange={(e) => setTumbangAdditional(parseInt(e.target.value, 10) || 0)}
-                      className="w-full text-sm font-black p-1.5 rounded-lg border border-rose-300 bg-white"
-                    />
+                  <div className="bg-white/80 border border-amber-200 rounded-lg p-2 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-600">Tumbang Additional:</span>
+                    <span className="text-sm font-black text-amber-900">{tumbangAdditional} Orang</span>
                   </div>
                 </div>
               </div>

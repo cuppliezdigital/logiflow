@@ -744,7 +744,7 @@ export default function AbsenMasukTab({
               }`}
             >
               <Building2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>1. Serah Terima Pasukan Vendor</span>
+              <span>1. Serah Terima In Vendor</span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800">
                 {totalVendorTotal} MP
               </span>
@@ -760,7 +760,7 @@ export default function AbsenMasukTab({
               }`}
             >
               <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-              <span>2. Distribusi Pos & Under Lapangan</span>
+              <span>2. Distribusi In PIC Lapangan</span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
                 {totalUnderTotal} MP
               </span>

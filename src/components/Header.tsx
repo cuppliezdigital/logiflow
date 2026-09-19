@@ -8,15 +8,16 @@
 // 3. Tab Navigasi Alur 4 Tahap (Plotingan -> Masuk -> Pulang -> Laporan)
 // ============================================================================
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ClipboardList, 
   LogIn, 
   LogOut, 
   FileSpreadsheet, 
   Warehouse, 
-  Calendar,
-  HeartPulse
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 // Definisi tipe props yang diterima oleh Header
@@ -31,6 +32,8 @@ interface HeaderProps {
   setSelectedDate: (date: string) => void;
   // Jumlah insiden tumbang hari ini untuk badge peringatan
   tumbangCount?: number;
+  // Tanggal-tanggal yang memiliki rekaman data plotingan/absensi
+  datesWithData?: string[];
 }
 
 export default function Header({
@@ -39,7 +42,114 @@ export default function Header({
   selectedDate,
   setSelectedDate,
   tumbangCount = 0,
+  datesWithData = [],
 }: HeaderProps) {
+  // State untuk custom calendar popover
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Parse current selected date
+  const [viewYear, setViewYear] = useState(() => {
+    const d = new Date(selectedDate || Date.now());
+    return isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+  });
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(selectedDate || Date.now());
+    return isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
+  });
+
+  useEffect(() => {
+    const d = new Date(selectedDate);
+    if (!isNaN(d.getTime())) {
+      setViewYear(d.getFullYear());
+      setViewMonth(d.getMonth());
+    }
+  }, [selectedDate]);
+
+  // Click outside to close calendar
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setIsCalendarOpen(false);
+      }
+    }
+    if (isCalendarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCalendarOpen]);
+
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  // Generate calendar days
+  const firstDayIndex = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7; // Monday = 0
+  const daysInCurrentMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+  const calendarDays = [];
+  // Prev month padding
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    calendarDays.push({
+      day: daysInPrevMonth - i,
+      month: viewMonth - 1,
+      year: viewMonth === 0 ? viewYear - 1 : viewYear,
+      isCurrentMonth: false,
+    });
+  }
+  // Current month days
+  for (let i = 1; i <= daysInCurrentMonth; i++) {
+    calendarDays.push({
+      day: i,
+      month: viewMonth,
+      year: viewYear,
+      isCurrentMonth: true,
+    });
+  }
+  // Next month padding to fill 35 or 42 grid
+  const remaining = (7 - (calendarDays.length % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    calendarDays.push({
+      day: i,
+      month: viewMonth + 1,
+      year: viewMonth === 11 ? viewYear + 1 : viewYear,
+      isCurrentMonth: false,
+    });
+  }
+
+  const formatLocalDateString = (dStr: string) => {
+    try {
+      const [y, m, d] = dStr.split('-');
+      if (!y || !m || !d) return dStr;
+      const monthShort = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${parseInt(d, 10)} ${monthShort[parseInt(m, 10) - 1]} ${y}`;
+    } catch {
+      return dStr;
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-lg border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -69,18 +179,131 @@ export default function Header({
             </div>
           </div>
 
-          {/* Date Selector (Pemilih Tanggal Operasional Kerja) */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-inner">
-              <Calendar className="w-4 h-4 text-sky-400" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-white focus:outline-none cursor-pointer"
-                title="Pilih tanggal kerja untuk melihat atau mencatat data"
-              />
-            </div>
+          {/* Date Selector (Pemilih Tanggal Operasional dengan Custom Popover & Dot Data) */}
+          <div className="flex items-center gap-3 relative" ref={calendarRef}>
+            <button
+              type="button"
+              onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+              className="flex items-center gap-2.5 bg-slate-800/95 hover:bg-slate-750 border border-slate-700/90 hover:border-slate-600 rounded-xl px-3.5 py-2 shadow-inner transition-all cursor-pointer group"
+              title="Pilih tanggal kerja (Tanggal yang bertitik hijau memiliki data)"
+            >
+              <CalendarIcon className="w-4 h-4 text-sky-400 group-hover:scale-105 transition-transform" />
+              <span className="text-sm font-bold text-white tracking-wide">
+                {formatLocalDateString(selectedDate)}
+              </span>
+              {datesWithData.includes(selectedDate) && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm animate-pulse" title="Hari ini memiliki data operasional" />
+              )}
+            </button>
+
+            {/* Custom Interactive Calendar Popover */}
+            {isCalendarOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in zoom-in-95 text-xs text-slate-200">
+                {/* Header Kalender: Bulan, Tahun, Tombol Prev/Next */}
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="font-extrabold text-sm text-white">
+                    {monthNames[viewMonth]} {viewYear}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                      title="Bulan sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                      title="Bulan berikutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Indikator Legend */}
+                <div className="flex items-center justify-between px-1 py-1 mb-2 bg-slate-800/60 rounded-lg border border-slate-750 text-[10px] text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span>Ada Data Rekaman</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                    <span>Aktif Dipilih</span>
+                  </span>
+                </div>
+
+                {/* Hari dalam seminggu */}
+                <div className="grid grid-cols-7 gap-1 text-center font-bold text-slate-400 text-[11px] mb-1.5">
+                  <span>Sn</span><span>Sl</span><span>Rb</span><span>Km</span><span>Jm</span><span>Sb</span><span>Mg</span>
+                </div>
+
+                {/* Grid Tanggal */}
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {calendarDays.map((item, idx) => {
+                    const monthStr = String(item.month + 1).padStart(2, '0');
+                    const dayStr = String(item.day).padStart(2, '0');
+                    const dateVal = `${item.year}-${monthStr}-${dayStr}`;
+                    const isSelected = dateVal === selectedDate;
+                    const hasData = datesWithData.includes(dateVal);
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(dateVal);
+                          setIsCalendarOpen(false);
+                        }}
+                        disabled={!item.isCurrentMonth}
+                        className={`py-1.5 rounded-lg flex flex-col items-center justify-center relative transition-all cursor-pointer ${
+                          !item.isCurrentMonth
+                            ? 'text-slate-600 opacity-40 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-sky-500 text-white font-black shadow-md'
+                            : 'hover:bg-slate-800 text-slate-200 font-semibold'
+                        }`}
+                      >
+                        <span className="text-xs leading-none">{item.day}</span>
+                        {/* Titik Hijau Penanda Data Ada */}
+                        {hasData && (
+                          <span
+                            className={`w-1 h-1 rounded-full mt-1 ${
+                              isSelected ? 'bg-white' : 'bg-emerald-400'
+                            }`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tombol Cepat Hari Ini */}
+                <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setSelectedDate(today);
+                      setIsCalendarOpen(false);
+                    }}
+                    className="text-[11px] font-bold text-sky-400 hover:text-sky-300 py-1 px-2 hover:bg-sky-500/10 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Hari Ini ({formatLocalDateString(new Date().toISOString().split('T')[0])})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCalendarOpen(false)}
+                    className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 py-1 px-2 cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>
@@ -114,7 +337,7 @@ export default function Header({
             2. Absen Masuk
           </button>
 
-          {/* TAB 3: Live Tumbang & Kendala (🚨 Real-time Incident & Report WA) */}
+          {/* TAB 3: Live Tumbang & Kendala (Flat Clean, Tanpa Icon Hati) */}
           <button
             onClick={() => setActiveTab('tumbang')}
             className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
@@ -123,7 +346,6 @@ export default function Header({
                 : 'border-transparent text-slate-400 hover:text-amber-200 hover:bg-slate-800/50 rounded-t-lg'
             }`}
           >
-            <HeartPulse className="w-4 h-4 text-amber-400" />
             <span>3. Live Tumbang</span>
             {tumbangCount > 0 && (
               <span className="bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full animate-pulse">

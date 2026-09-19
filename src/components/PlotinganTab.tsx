@@ -36,6 +36,7 @@ import {
   createPlotingan, 
   updatePlotingan, 
   deletePlotingan,
+  deleteMultiplePlotingans,
   saveBatchPlotingan,
   getPlotinganForCopy 
 } from '@/app/actions';
@@ -100,12 +101,46 @@ export default function PlotinganTab({
   // Form State untuk input data plotingan terpadu
   const [vendorId, setVendorId] = useState(uniqueVendors[0]?.id || vendors[0]?.id || '');
   const [shiftId, setShiftId] = useState(uniqueShifts[0]?.id || shifts[0]?.id || '');
-  
-  // Target total kebutuhan Manpower (MP) per vendor
-  const [targetHeadcount, setTargetHeadcount] = useState<number>(20);
-
-  const [workingHours, setWorkingHours] = useState(''); // Jam kerja bebas/opsional
+  const [targetHeadcount, setTargetHeadcount] = useState<number | ''>(20);
+  const [workingHours, setWorkingHours] = useState('');
   const [notes, setNotes] = useState('');
+
+  // STATE CHECKBOX BULK DELETE
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
+  // Toggle selection for single item
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Toggle select all
+  const handleSelectAll = () => {
+    if (selectedIds.length === plotingans.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(plotingans.map((p) => p.id));
+    }
+  };
+
+  // Execute bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (confirm(`Yakin ingin menghapus ${selectedIds.length} plotingan terpilih sekaligus? Data absensi terkait juga akan terhapus.`)) {
+      setIsDeletingBulk(true);
+      try {
+        await deleteMultiplePlotingans(selectedIds);
+        setSelectedIds([]);
+        onRefresh();
+      } catch (err: any) {
+        alert('Gagal menghapus: ' + err.message);
+      } finally {
+        setIsDeletingBulk(false);
+      }
+    }
+  };
 
   // --------------------------------------------------------------------------
   // KALKULASI RINGKASAN DATA
@@ -435,6 +470,39 @@ export default function PlotinganTab({
 
       {/* 3. TABEL DAFTAR PLOTINGAN (1 Baris per Vendor per Shift) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        
+        {/* Floating Bulk Action Bar (Saat ada baris dicentang) */}
+        {selectedIds.length > 0 && (
+          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+              <span>Terpilih {selectedIds.length} dari {plotingans.length} plotingan</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={isDeletingBulk}
+                className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs px-3.5 py-1.5 rounded-lg shadow transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingBulk ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Hapus Terpilih ({selectedIds.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {plotingans.length === 0 ? (
           <div className="p-12 text-center">
             <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -464,6 +532,16 @@ export default function PlotinganTab({
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-700 border-b border-slate-200">
                 <tr>
+                  {/* Checkbox Select All */}
+                  <th className="py-3.5 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length > 0 && selectedIds.length === plotingans.length}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      title="Pilih Semua Plotingan"
+                    />
+                  </th>
                   <th className="py-3.5 px-4">Nama Vendor</th>
                   <th className="py-3.5 px-4">Shift & Jam Kerja</th>
                   <th className="py-3.5 px-4 text-center">Target Manpower (MP)</th>
@@ -475,6 +553,7 @@ export default function PlotinganTab({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {plotingans.map((p) => {
+                  const isChecked = selectedIds.includes(p.id);
                   const masuk = p.attendanceIn?.actualHeadcount;
                   const masukReg = p.attendanceIn?.actualRegular ?? 0;
                   const masukAdd = p.attendanceIn?.actualAdditional ?? 0;
@@ -482,7 +561,16 @@ export default function PlotinganTab({
                   const isPagi = p.shift.name.toLowerCase().includes('pagi');
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={p.id} className={`transition-colors ${isChecked ? 'bg-blue-50/60' : 'hover:bg-slate-50/80'}`}>
+                      {/* Checkbox per baris */}
+                      <td className="py-4 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelect(p.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
                       {/* Nama Vendor & Info PIC */}
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">

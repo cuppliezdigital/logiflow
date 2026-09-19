@@ -16,7 +16,7 @@ import AbsenMasukTab from '@/components/AbsenMasukTab';
 import TumbangTab from '@/components/TumbangTab';
 import AbsenPulangTab from '@/components/AbsenPulangTab';
 import LaporanTab from '@/components/LaporanTab';
-import { getMasterData, getPlotingans, getTumbangIncidents } from '@/app/actions';
+import { getMasterData, getPlotingans, getTumbangIncidents, getDatesWithData } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
 
 export default function Home() {
@@ -42,6 +42,9 @@ export default function Home() {
   // Data insiden pekerja tumbang / sakit / izin hari ini
   const [tumbangIncidents, setTumbangIncidents] = useState<any[]>([]);
 
+  // Tanggal-tanggal yang memiliki rekaman data plotingan
+  const [datesWithData, setDatesWithData] = useState<string[]>([]);
+
   // Status loading indikator data
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -52,12 +55,14 @@ export default function Home() {
   // Fungsi untuk mengambil data plotingan dan tumbang berdasarkan tanggal terpilih
   const loadPlotinganData = useCallback(async (date: string) => {
     try {
-      const [plotData, incidentData] = await Promise.all([
+      const [plotData, incidentData, activeDates] = await Promise.all([
         getPlotingans(date),
-        getTumbangIncidents(date)
+        getTumbangIncidents(date),
+        getDatesWithData()
       ]);
       setPlotingans(plotData);
       setTumbangIncidents(incidentData);
+      setDatesWithData(activeDates);
     } catch (err) {
       console.error('Gagal mengambil data operasional:', err);
     }
@@ -122,6 +127,7 @@ export default function Home() {
         selectedDate={selectedDate}
         setSelectedDate={handleDateChange}
         tumbangCount={tumbangIncidents.length}
+        datesWithData={datesWithData}
       />
 
       {/* 2. KONTEN UTAMA SESUAI TAB AKTIF */}
