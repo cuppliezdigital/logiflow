@@ -191,16 +191,16 @@ export default function TumbangTab({
     const divName = divisionObj ? divisionObj.label : item.division;
     const shiftName = item.shift?.name || 'Shift Pagi';
 
-    const text = `🚨 *LAPORAN INSIDEN PEKERJA TUMBANG (GUDANG LOGISTIK)*
+    const text = `*LAPORAN INSIDEN PEKERJA TUMBANG (GUDANG LOGISTIK)*
 ━━━━━━━━━━━━━━━━━━━━
-📅 *Tanggal:* ${item.date}
-⏰ *Jam Keluar:* ${item.time} WIB
-🏢 *Shift:* ${shiftName}
-📍 *Divisi Pos:* ${divName}
-👷‍♂️ *Under Lapangan:* ${item.underName}
-🤝 *Vendor Mitra:* ${item.vendorName || '-'} (Pasukan: *${item.category}*)
-🩺 *Kendala / Diagnosa:* ${item.type}
-📝 *Kronologi & Penanganan:* ${item.notes || 'Sudah diarahkan ke Posko P3K / Klinik Gudang.'}
+ *Tanggal:* ${item.date}
+ *Jam Keluar:* ${item.time} WIB
+ *Shift:* ${shiftName}
+ *Divisi Pos:* ${divName}
+ *Under Lapangan:* ${item.underName}
+ *Vendor Mitra:* ${item.vendorName || '-'} (Pasukan: *${item.category}*)
+ *Kendala / Diagnosa:* ${item.type}
+ *Kronologi & Penanganan:* ${item.notes || 'Sudah diarahkan ke Posko P3K / Klinik Gudang.'}
 ━━━━━━━━━━━━━━━━━━━━
 _Laporan otomatis via Absensi Manpower Control_`;
 
@@ -218,17 +218,13 @@ _Laporan otomatis via Absensi Manpower Control_`;
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="bg-amber-500 text-white font-black text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
-                FASE 3 OPERASIONAL
-              </span>
               <span className="text-xs font-bold text-slate-500">Tanggal: {selectedDate}</span>
             </div>
             <h2 className="text-base font-extrabold text-slate-900 mt-1 flex items-center gap-2">
-              <HeartPulse className="w-5 h-5 text-amber-600" />
               Live Tumbang, Sakit & Kendala Lapangan
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              Under Lapangan mencatat langsung pekerja yang drop fisik atau izin saat shift berjalan. Dilengkapi 1-klik format laporan WhatsApp ke Atasan.
+              PIC Lapangan mencatat langsung pekerja yang drop fisik atau izin saat shift berjalan. Dilengkapi 1-klik format laporan WhatsApp ke Atasan.
             </p>
           </div>
 

@@ -426,14 +426,11 @@ export default function AbsenPulangTab({
   return (
     <div className="space-y-6">
       
-      {/* 1. HEADER FASE 4 OPERASIONAL */}
+      {/* 1. HEADER OPERASIONAL PULANG */}
       <div className="bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-950 text-white rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-white/20 text-white border border-white/30">
-                FASE 4 OPERASIONAL
-              </span>
               <span className="text-xs text-indigo-200 font-medium">Tanggal: {selectedDate}</span>
             </div>
             <h1 className="text-lg md:text-xl font-black tracking-tight mt-1 flex items-center gap-2">
@@ -442,7 +439,7 @@ export default function AbsenPulangTab({
             </h1>
             <p className="text-xs text-indigo-200/90 mt-0.5 max-w-2xl leading-relaxed">
               Merekam pelepasan pulang pasukan dari dua sisi: Serah terima kepulangan Vendor & konfirmasi checkout 
-              oleh Under Lapangan di tiap divisi, tersinkronisasi otomatis dengan data pekerja tumbang.
+              oleh PIC Lapangan di tiap divisi, tersinkronisasi otomatis dengan data pekerja tumbang.
             </p>
           </div>
 
@@ -763,7 +760,7 @@ export default function AbsenPulangTab({
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
               <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
               <p className="text-sm font-bold text-slate-700">Belum Ada Penugasan Under</p>
-              <p className="text-xs text-slate-400 mt-0.5">Under didistribusikan pada Fase 2 (Absen Masuk).</p>
+              <p className="text-xs text-slate-400 mt-0.5">PIC Lapangan didistribusikan saat Absen Masuk.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -939,7 +936,7 @@ export default function AbsenPulangTab({
                 </div>
 
                 <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Data tumbang terkunci otomatis sesuai rekap PIC di Fase 3 Live Tumbang demi integritas absensi. Vendor tidak dapat mengubah angka ini.
+                  Data tumbang terkunci otomatis sesuai rekap PIC di Live Tumbang demi integritas absensi. Vendor tidak dapat mengubah angka ini.
                 </p>
 
                 <div className="grid grid-cols-2 gap-2 text-xs pt-1">

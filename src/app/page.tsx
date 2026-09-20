@@ -10,7 +10,9 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
+import TopBar from '@/components/TopBar';
+import MobileBottomNav from '@/components/MobileBottomNav';
 import PlotinganTab from '@/components/PlotinganTab';
 import AbsenMasukTab from '@/components/AbsenMasukTab';
 import TumbangTab from '@/components/TumbangTab';
@@ -31,6 +33,9 @@ export default function Home() {
 
   // Tab yang sedang aktif dibuka pengguna: 'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan'
   const [activeTab, setActiveTab] = useState<'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan'>('plotingan');
+
+  // State menu drawer mobile (khusus layar HP)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Master data: daftar vendor aktif dan shift kerja (Shift Pagi & Shift Malam)
   const [vendors, setVendors] = useState<any[]>([]);
@@ -118,90 +123,111 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100/70 flex flex-col md:flex-row font-sans text-slate-800">
       
-      {/* 1. HEADER & NAVIGASI TAB (5 FASE) */}
-      <Header
+      {/* 1. SIDEBAR KIRI (LAPTOP / PC) & MOBILE SLIDE-IN DRAWER (HP) */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        selectedDate={selectedDate}
-        setSelectedDate={handleDateChange}
         tumbangCount={tumbangIncidents.length}
-        datesWithData={datesWithData}
+        isMobileOpen={isMobileMenuOpen}
+        setIsMobileOpen={setIsMobileMenuOpen}
       />
 
-      {/* 2. KONTEN UTAMA SESUAI TAB AKTIF */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {isLoading ? (
-          // Loading spinner saat berpindah tanggal atau fetch awal
-          <div className="flex flex-col items-center justify-center py-32 space-y-3">
-            <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
-            <p className="text-sm font-semibold text-slate-500">Memuat data operasional gudang...</p>
-          </div>
-        ) : (
-          <div>
-            {/* FASE 1: MODUL PLOTINGAN (TARGET HEADCOUNT H-1 & KELOLA VENDOR) */}
-            {activeTab === 'plotingan' && (
-              <PlotinganTab
-                plotingans={plotingans}
-                vendors={vendors}
-                shifts={shifts}
-                selectedDate={selectedDate}
-                onRefresh={handleRefresh}
-                onVendorsChanged={loadMasterData}
-              />
-            )}
+      {/* 2. AREA KONTEN UTAMA */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        
+        {/* TOPBAR: Hamburger Menu di HP, Judul Modul di Laptop, & Kalender Popover */}
+        <TopBar
+          activeTab={activeTab}
+          selectedDate={selectedDate}
+          setSelectedDate={handleDateChange}
+          datesWithData={datesWithData}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
 
-            {/* FASE 2: MODUL ABSEN MASUK & DISTRIBUSI POS UNDER LAPANGAN */}
-            {activeTab === 'masuk' && (
-              <AbsenMasukTab
-                plotingans={plotingans}
-                shifts={shifts}
-                selectedDate={selectedDate}
-                onRefresh={handleRefresh}
-              />
-            )}
+        {/* MAIN BODY PER MODUL OPERASIONAL */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+          {isLoading ? (
+            // Loading spinner saat berpindah tanggal atau fetch awal
+            <div className="flex flex-col items-center justify-center py-32 space-y-3">
+              <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
+              <p className="text-sm font-semibold text-slate-500">Memuat data operasional gudang...</p>
+            </div>
+          ) : (
+            <div>
+              {/* MODUL PLOTINGAN (TARGET HEADCOUNT H-1 & KELOLA VENDOR) */}
+              {activeTab === 'plotingan' && (
+                <PlotinganTab
+                  plotingans={plotingans}
+                  vendors={vendors}
+                  shifts={shifts}
+                  selectedDate={selectedDate}
+                  onRefresh={handleRefresh}
+                  onVendorsChanged={loadMasterData}
+                />
+              )}
 
-            {/* FASE 3: MODUL LIVE TUMBANG & KENDALA (LAPORAN ATASAN REAL-TIME) */}
-            {activeTab === 'tumbang' && (
-              <TumbangTab
-                incidents={tumbangIncidents}
-                shifts={shifts}
-                vendors={vendors}
-                selectedDate={selectedDate}
-                onRefresh={handleRefresh}
-              />
-            )}
+              {/* MODUL ABSEN MASUK & DISTRIBUSI POS PIC LAPANGAN */}
+              {activeTab === 'masuk' && (
+                <AbsenMasukTab
+                  plotingans={plotingans}
+                  shifts={shifts}
+                  selectedDate={selectedDate}
+                  onRefresh={handleRefresh}
+                />
+              )}
 
-            {/* FASE 4: MODUL ABSEN PULANG & REKONSILIASI KEPULANGAN */}
-            {activeTab === 'pulang' && (
-              <AbsenPulangTab
-                plotingans={plotingans}
-                shifts={shifts}
-                tumbangIncidents={tumbangIncidents}
-                selectedDate={selectedDate}
-                onRefresh={handleRefresh}
-              />
-            )}
+              {/* MODUL LIVE TUMBANG & KENDALA (LAPORAN ATASAN REAL-TIME) */}
+              {activeTab === 'tumbang' && (
+                <TumbangTab
+                  incidents={tumbangIncidents}
+                  shifts={shifts}
+                  vendors={vendors}
+                  selectedDate={selectedDate}
+                  onRefresh={handleRefresh}
+                />
+              )}
 
-            {/* FASE 5: MODUL LAPORAN KPI, MATRIKS DISTRIBUSI & INVOICE */}
-            {activeTab === 'laporan' && (
-              <LaporanTab
-                vendors={vendors}
-                selectedDate={selectedDate}
-              />
-            )}
-          </div>
-        )}
-      </main>
+              {/* MODUL ABSEN PULANG & REKONSILIASI KEPULANGAN */}
+              {activeTab === 'pulang' && (
+                <AbsenPulangTab
+                  plotingans={plotingans}
+                  shifts={shifts}
+                  tumbangIncidents={tumbangIncidents}
+                  selectedDate={selectedDate}
+                  onRefresh={handleRefresh}
+                />
+              )}
 
-      {/* 3. FOOTER APLIKASI */}
-      <footer className="bg-white border-t border-slate-200 py-4 mt-auto text-center text-xs text-slate-400">
-        <p>
-          &copy; {new Date().getFullYear()} <strong className="text-slate-700 font-bold">Absensi</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
-        </p>
-      </footer>
+              {/* MODUL LAPORAN REKAPITULASI & INVOICE */}
+              {activeTab === 'laporan' && (
+                <LaporanTab
+                  vendors={vendors}
+                  selectedDate={selectedDate}
+                />
+              )}
+            </div>
+          )}
+        </main>
+
+        {/* 3. FOOTER APLIKASI (Desktop Only) */}
+        <footer className="hidden md:block bg-white border-t border-slate-200 py-3.5 text-center text-xs text-slate-400 mt-auto">
+          <p>
+            &copy; {new Date().getFullYear()} <strong className="text-slate-700 font-bold">Absensi</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
+          </p>
+        </footer>
+
+      </div>
+
+      {/* 4. BOTTOM NAVIGATION BAR KHUSUS HP (Ramah Jempol) */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        tumbangCount={tumbangIncidents.length}
+      />
 
     </div>
   );
 }
+

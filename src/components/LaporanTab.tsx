@@ -272,7 +272,7 @@ export default function LaporanTab({
       
       {/* 1. BANNER INFORMASI LAPORAN */}
       <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
-        <h2 className="text-base font-bold text-slate-900">FASE 5: Laporan Rekapitulasi & Validasi Invoice Vendor</h2>
+        <h2 className="text-base font-bold text-slate-900">Laporan Rekapitulasi & Validasi Invoice Vendor</h2>
         <p className="text-xs text-slate-600 mt-0.5">
           Rekapitulasi terpadu per vendor dan shift, matriks distribusi divisi operasional, serta validasi audit integritas sebelum penagihan invoice.
         </p>

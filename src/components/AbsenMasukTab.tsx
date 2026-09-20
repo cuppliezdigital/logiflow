@@ -718,13 +718,10 @@ export default function AbsenMasukTab({
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase bg-white/20 text-white border border-white/30">
-                FASE 2 OPERASIONAL
-              </span>
               <span className="text-xs text-blue-100 font-medium">Tanggal: {selectedDate}</span>
             </div>
             <h1 className="text-lg md:text-xl font-black tracking-tight mt-1">
-              Absen Masuk & Distribusi Pos Under Lapangan
+              Absen Masuk & Distribusi Pos PIC Lapangan
             </h1>
             <p className="text-xs text-blue-100/90 mt-0.5 max-w-2xl leading-relaxed">
               Merekam kehadiran fisik serah terima pasukan dari vendor, kemudian mendistribusikannya ke 5 divisi kerja 
