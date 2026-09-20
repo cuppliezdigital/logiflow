@@ -149,6 +149,10 @@ export default function PlotinganTab({
   const uniqueVendorsCount = new Set(plotingans.map((p) => p.vendorId)).size;
   const totalMasuk = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualHeadcount || 0), 0);
   const overallFulfillment = totalTarget > 0 ? Math.round((totalMasuk / totalTarget) * 100) : 0;
+  const totalMasukReg = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualRegular || 0), 0);
+  const totalMasukAdd = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualAdditional || 0), 0);
+  const ringCircumference = 163.36;
+  const ringOffset = totalTarget > 0 ? Math.max(0, ringCircumference - (overallFulfillment / 100) * ringCircumference) : ringCircumference;
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
@@ -380,8 +384,51 @@ export default function PlotinganTab({
   return (
     <div className="space-y-6">
       
-      {/* 1. KARTU STATISTIK RINGKASAN DI BAGIAN ATAS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* 1.A HERO TELEMETRY CARD DI HP (CIRCULAR PROGRESS GAUGE SEPERTI DI DEMO) */}
+      <div className="md:hidden bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Realisasi Hadir</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black text-slate-900 tracking-tight">{totalMasuk}</span>
+              <span className="text-xs font-bold text-slate-400">/ {totalTarget} Target MP</span>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-0.5">
+              <TrendingUp className="w-3 h-3 text-emerald-500" />
+              {overallFulfillment}% Terpenuhi &bull; {overallFulfillment >= 100 ? 'Lengkap' : 'Shift Berjalan'}
+            </span>
+          </div>
+
+          {/* Circular Metric Progress Ring */}
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <svg className="w-16 h-16 transform -rotate-90">
+              <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="5" className="text-slate-100" fill="transparent" />
+              <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="5" className="text-sky-500" fill="transparent"
+                strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} strokeLinecap="round" />
+            </svg>
+            <span className="absolute text-[11px] font-mono font-black text-slate-900">{overallFulfillment}%</span>
+          </div>
+        </div>
+
+        {/* 3-Segment Metric Strip */}
+        <div className="pt-2.5 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[10px]">
+          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
+            <span className="text-slate-400 block text-[9px] font-bold">REGULAR</span>
+            <strong className="text-blue-700 font-black text-xs">{totalMasukReg} MP</strong>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
+            <span className="text-slate-400 block text-[9px] font-bold">ADDITIONAL</span>
+            <strong className="text-amber-700 font-black text-xs">{totalMasukAdd} MP</strong>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
+            <span className="text-slate-400 block text-[9px] font-bold">VENDOR</span>
+            <strong className="text-slate-700 font-black text-xs">{uniqueVendorsCount} Vendor</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* 1.B KARTU STATISTIK DESKTOP / LAPTOP */}
+      <div className="hidden md:grid md:grid-cols-3 gap-4">
         {/* Total Target Kebutuhan (MP) */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
@@ -528,7 +575,9 @@ export default function PlotinganTab({
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* TAMPILAN TABEL DESKTOP (KHUSUS LAPTOP / PC) */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-700 border-b border-slate-200">
                 <tr>
@@ -663,7 +712,186 @@ export default function PlotinganTab({
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* TAMPILAN FEED KARTU MOBILE (MD:HIDDEN) - Sesuai Demo Mobile UX */}
+          <div className="md:hidden space-y-3">
+            {/* Mobile Bulk Selection Action Bar jika ada item yang dicentang */}
+            {selectedIds.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                <span className="font-black text-blue-900">
+                  {selectedIds.length} vendor dipilih
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeletingBulk}
+                  className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-xl shadow-xs cursor-pointer text-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingBulk ? 'Menghapus...' : 'Hapus Terpilih'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Select All Checkbox bar untuk mobile */}
+            <div className="flex items-center justify-between px-1 text-xs text-slate-500">
+              <label className="flex items-center gap-2 font-bold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length > 0 && selectedIds.length === plotingans.length}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-slate-700">Pilih Semua ({plotingans.length})</span>
+              </label>
+              <span className="text-[11px] font-semibold text-slate-400">Ketuk untuk kelola</span>
+            </div>
+
+            {/* Daftar Kartu per Vendor */}
+            {plotingans.map((p) => {
+              const isChecked = selectedIds.includes(p.id);
+              const masuk = p.attendanceIn?.actualHeadcount;
+              const masukReg = p.attendanceIn?.actualRegular ?? 0;
+              const masukAdd = p.attendanceIn?.actualAdditional ?? 0;
+              const fulfillment = masuk !== undefined ? Math.round((masuk / p.targetHeadcount) * 100) : null;
+              const isPagi = p.shift.name.toLowerCase().includes('pagi');
+              const selisih = masuk !== undefined ? masuk - p.targetHeadcount : 0;
+
+              return (
+                <div
+                  key={p.id}
+                  className={`bg-white rounded-2xl p-4 border transition-all duration-150 shadow-xs space-y-3 ${
+                    isChecked ? 'border-blue-500 ring-2 ring-blue-200/60 bg-blue-50/20' : 'border-slate-200'
+                  }`}
+                >
+                  {/* Header Card: Checkbox + Vendor Name + Status Badge */}
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleSelect(p.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-0.5"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${
+                            masuk === undefined ? 'bg-slate-300' :
+                            selisih >= 0 ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`} />
+                          <h4 className="text-sm font-black text-slate-900 leading-tight">
+                            {p.vendor.name}
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 mt-0.5 ml-3.5">
+                          {isPagi ? (
+                            <span className="flex items-center gap-0.5 text-amber-600">
+                              <Sun className="w-3 h-3 text-amber-500" />
+                              {p.shift.name}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-indigo-600">
+                              <Moon className="w-3 h-3 text-indigo-500" />
+                              {p.shift.name}
+                            </span>
+                          )}
+                          <span>&bull;</span>
+                          <span className="flex items-center gap-0.5 text-slate-600">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {p.workingHours || 'Jam Fleksibel'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div>
+                      {masuk !== undefined ? (
+                        selisih >= 0 ? (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Lengkap
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                            {selisih} Kurang
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500">
+                          Menunggu
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 2-Column Metrics Box: Target vs Realisasi */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">
+                        Target Kuota
+                      </span>
+                      <strong className="text-base font-black text-slate-900">
+                        {p.targetHeadcount} <span className="text-[10px] font-semibold text-slate-500">MP</span>
+                      </strong>
+                      {p.notes && (
+                        <span className="text-[9px] text-slate-500 block truncate mt-0.5">
+                          {p.notes}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">
+                        Realisasi Hadir
+                      </span>
+                      {masuk !== undefined ? (
+                        <div>
+                          <strong className="text-base font-black text-blue-700">
+                            {masuk} <span className="text-[10px] font-bold text-emerald-600">({fulfillment}%)</span>
+                          </strong>
+                          <div className="text-[9px] font-semibold text-slate-500 mt-0.5 flex items-center gap-1">
+                            <span className="text-blue-600">R: {masukReg}</span>
+                            <span>&bull;</span>
+                            <span className="text-amber-600">A: {masukAdd}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400 italic">Belum absen</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer: PIC Info + Action Buttons (Edit & Hapus) */}
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <div className="text-[10px] text-slate-400 truncate max-w-[160px]">
+                      {p.vendor.picName ? (
+                        <span>PIC: <strong className="text-slate-600 font-semibold">{p.vendor.picName}</strong></span>
+                      ) : (
+                        <span className="text-slate-300">Tanpa PIC</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(p)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </div>
 
       {/* 4. MODAL FORM: TAMBAH ATAU EDIT PLOTINGAN (TERPADU REG + ADD) */}

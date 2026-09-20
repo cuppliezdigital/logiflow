@@ -36,3 +36,4 @@ export const THEME_OPTIONS: ThemeOption[] = [
     colors: ['bg-slate-950', 'bg-slate-900', 'bg-sky-400'],
   },
 ];
+

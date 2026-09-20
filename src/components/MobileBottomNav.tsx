@@ -55,7 +55,7 @@ export default function MobileBottomNav({
       : 'text-sky-400';
 
   return (
-    <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-30 backdrop-blur-md border-t px-2 py-1.5 shadow-2xl flex items-center justify-around safe-bottom ${navBg}`}>
+    <nav className={`md:hidden fixed bottom-3 inset-x-3 max-w-md mx-auto z-30 backdrop-blur-md border px-2 py-2 rounded-2xl shadow-2xl flex items-center justify-around ${navBg}`}>
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
