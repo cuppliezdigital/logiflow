@@ -28,6 +28,8 @@ import {
   ZoomIn,
   Eye,
   ArrowUpRight, 
+  ArrowLeft,
+  ChevronRight,
   Clock, 
   LayoutGrid, 
   Table,
@@ -67,6 +69,9 @@ export default function LaporanTab({
   const [viewMode, setViewMode] = useState<'MATRIX' | 'DIV_MATRIX' | 'TABLE' | 'UNDER'>('MATRIX');
   // State filter shift pada tampilan matriks (ALL, atau nama shift spesifik)
   const [matrixShiftFilter, setMatrixShiftFilter] = useState<string>('ALL');
+
+  // State mode fullscreen khusus tampilan mobile
+  const [isMobileFullscreen, setIsMobileFullscreen] = useState(false);
 
   // State untuk pop-up modal detail interaktif (ketika kotak Pulang Utuh / Total Tumbang diklik)
   const [detailModalType, setDetailModalType] = useState<'PULANG' | 'TUMBANG' | null>(null);
@@ -270,16 +275,30 @@ export default function LaporanTab({
   return (
     <div className="space-y-6">
       
-      {/* 1. BANNER INFORMASI LAPORAN */}
-      <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
+      {/* 1. BANNER INFORMASI LAPORAN (DESKTOP: HIDDEN MD:BLOCK) */}
+      <div className="hidden md:block bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-l-4 border-blue-600 p-4 rounded-r-xl">
         <h2 className="text-base font-bold text-slate-900">Laporan Rekapitulasi & Validasi Invoice Vendor</h2>
         <p className="text-xs text-slate-600 mt-0.5">
           Rekapitulasi terpadu per vendor dan shift, matriks distribusi divisi operasional, serta validasi audit integritas sebelum penagihan invoice.
         </p>
       </div>
 
-      {/* 2. BAR FILTER & TOMBOL EXPORT EXCEL */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+      {/* 1. HEADER RINGKAS (MOBILE: MD:HIDDEN) */}
+      <div className="md:hidden bg-white rounded-3xl p-3 border border-slate-200/80 shadow-xs space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Gateway Rekap</span>
+          <span className="text-[9px] font-extrabold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
+            {records.length} Plotingan
+          </span>
+        </div>
+        <h2 className="text-sm font-black text-slate-900 tracking-tight">Rekapitulasi & Validasi</h2>
+        <p className="text-[10px] text-slate-400 line-clamp-1">
+          Audit kehadiran & rekap penagihan invoice vendor
+        </p>
+      </div>
+
+      {/* 2. BAR FILTER & TOMBOL EXPORT EXCEL (DESKTOP: HIDDEN MD:BLOCK) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           
           {/* Form Filter */}
@@ -347,8 +366,65 @@ export default function LaporanTab({
         </div>
       </div>
 
-      {/* 3. KARTU STATISTIK KPI UTAMA (4 Kartu Simetris & Interaktif) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 2. FILTER & EXCEL (MOBILE: MD:HIDDEN) */}
+      <div className="md:hidden bg-white rounded-2xl p-2.5 border border-slate-200 shadow-xs space-y-2">
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 flex items-center justify-between text-xs">
+            <span className="text-[9px] font-bold text-slate-400">DARI:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-[11px] max-w-[105px]"
+            />
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 flex items-center justify-between text-xs">
+            <span className="text-[9px] font-bold text-slate-400">SAMPAI:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-[11px] max-w-[105px]"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[11px]">
+            <select
+              value={selectedVendorId}
+              onChange={(e) => setSelectedVendorId(e.target.value)}
+              className="bg-transparent font-extrabold text-slate-900 focus:outline-none cursor-pointer w-full"
+            >
+              <option value="ALL" className="text-slate-900 bg-white font-bold">Semua Vendor</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id} className="text-slate-900 bg-white font-bold">{getShortVendorName(v.name)}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={fetchStats}
+            disabled={isLoading}
+            className="p-2 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer shrink-0"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={handleExportExcel}
+            disabled={isExporting || records.length === 0}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{isExporting ? '...' : 'Excel'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. KARTU STATISTIK KPI UTAMA (DESKTOP: HIDDEN MD:GRID) */}
+      <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* KPI 1: Target Kebutuhan */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
@@ -416,11 +492,223 @@ export default function LaporanTab({
         </div>
       </div>
 
-      {/* 4. DUAL MODE: MATRIKS OPERASIONAL STANDAR LAPANGAN & TABEL DETAIL BARIS */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        
-        {/* Header Seksi & Kontrol Switcher Mode */}
-        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+      {/* 3. KARTU STATISTIK KPI UTAMA (MOBILE: MD:HIDDEN 2x2 GRID DENGAN LEFT BAR) */}
+      <div className="md:hidden grid grid-cols-2 gap-2">
+        {/* KPI 1: Target */}
+        <div className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-sky-500 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase">
+            <span>Target</span>
+            <Users className="w-3.5 h-3.5 text-sky-500" />
+          </div>
+          <div className="text-lg font-black text-slate-900 leading-none">
+            {totals.totalTarget} <span className="text-[10px] font-normal text-slate-400">Org</span>
+          </div>
+          <div className="text-[9px] text-slate-500 pt-0.5 border-t border-slate-100 flex justify-between font-bold">
+            <span>Reg: <strong className="text-blue-600">{totals.regTarget}</strong></span>
+            <span>Add: <strong className="text-amber-600">{totals.addTarget}</strong></span>
+          </div>
+        </div>
+
+        {/* KPI 2: Aktual Masuk */}
+        <div className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-emerald-500 shadow-xs space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase">
+            <span>Aktual Masuk</span>
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+          </div>
+          <div className="text-lg font-black text-emerald-600 leading-none">
+            {totals.totalMasuk} <span className="text-[10px] font-normal text-slate-400">Org</span>
+          </div>
+          <div className="text-[9px] text-emerald-700 pt-0.5 border-t border-slate-100 flex justify-between font-bold">
+            <span>Fulfill: <strong className="text-emerald-800">{totals.overallFulfillment}%</strong></span>
+            <span className="text-slate-400 text-[8px]">(R:{totals.regMasuk}|A:{totals.addMasuk})</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Pulang Utuh */}
+        <div
+          onClick={() => setDetailModalType('PULANG')}
+          className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-blue-600 shadow-xs space-y-1 cursor-pointer active:scale-95 transition-all"
+        >
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase">
+            <span>Pulang Utuh</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-blue-600" />
+          </div>
+          <div className="text-lg font-black text-blue-600 leading-none">
+            {totals.totalPulang} <span className="text-[10px] font-normal text-slate-400">Org</span>
+          </div>
+          <div className="text-[9px] text-blue-600 pt-0.5 border-t border-slate-100 flex justify-between font-bold">
+            <span>Retensi: {totals.overallRetention}%</span>
+            <span className="underline">Rincian &rarr;</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Total Tumbang */}
+        <div
+          onClick={() => setDetailModalType('TUMBANG')}
+          className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-amber-500 shadow-xs space-y-1 cursor-pointer active:scale-95 transition-all"
+        >
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase">
+            <span>Tumbang</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-amber-600" />
+          </div>
+          <div className="text-lg font-black text-amber-600 leading-none">
+            {totals.totalTumbang} <span className="text-[10px] font-normal text-slate-400">Org</span>
+          </div>
+          <div className="text-[9px] text-amber-600 pt-0.5 border-t border-slate-100 flex justify-between font-bold">
+            <span>R:{totals.regTumbang} &bull; A:{totals.addTumbang}</span>
+            <span className="underline">Rincian &rarr;</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. 4 KATEGORI DATA RINCIAN OPERASIONAL (MOBILE: MD:HIDDEN) */}
+      <div className="md:hidden space-y-2 pt-1">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-black text-slate-900 uppercase tracking-wider">
+            Rincian Data Operasional
+          </span>
+          <span className="text-[10px] text-slate-400 font-bold">4 Kategori</span>
+        </div>
+
+        {/* Card 1: Matriks Manpower */}
+        <button
+          type="button"
+          onClick={() => { setViewMode('MATRIX'); setIsMobileFullscreen(true); }}
+          className="w-full bg-white rounded-2xl p-3 border border-slate-200/90 border-l-4 border-l-blue-600 shadow-xs hover:border-blue-300 flex items-center justify-between text-left transition-all cursor-pointer active:scale-[0.98]"
+        >
+          <div className="space-y-0.5 min-w-0 pr-2">
+            <div className="flex items-center gap-1.5">
+              <LayoutGrid className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <h4 className="text-xs font-black text-slate-900 leading-tight truncate">Matriks Manpower</h4>
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">Rekap kehadiran, kepulangan, & retensi per vendor</p>
+          </div>
+          <div className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            ›
+          </div>
+        </button>
+
+        {/* Card 2: Matriks Divisi x Vendor */}
+        <button
+          type="button"
+          onClick={() => { setViewMode('DIV_MATRIX'); setIsMobileFullscreen(true); }}
+          className="w-full bg-white rounded-2xl p-3 border border-slate-200/90 border-l-4 border-l-indigo-600 shadow-xs hover:border-indigo-300 flex items-center justify-between text-left transition-all cursor-pointer active:scale-[0.98]"
+        >
+          <div className="space-y-0.5 min-w-0 pr-2">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <h4 className="text-xs font-black text-slate-900 leading-tight truncate">Matriks Divisi x Vendor</h4>
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">Sebaran di Bongkar, Muat, Sortir, FIFO, Repack</p>
+          </div>
+          <div className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            ›
+          </div>
+        </button>
+
+        {/* Card 3: Tabel Baris Transaksional */}
+        <button
+          type="button"
+          onClick={() => { setViewMode('TABLE'); setIsMobileFullscreen(true); }}
+          className="w-full bg-white rounded-2xl p-3 border border-slate-200/90 border-l-4 border-l-slate-400 shadow-xs hover:border-slate-300 flex items-center justify-between text-left transition-all cursor-pointer active:scale-[0.98]"
+        >
+          <div className="space-y-0.5 min-w-0 pr-2">
+            <div className="flex items-center gap-1.5">
+              <Table className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+              <h4 className="text-xs font-black text-slate-900 leading-tight truncate">Tabel Baris Transaksional</h4>
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">Catatan detail per baris plotingan shift</p>
+          </div>
+          <div className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            ›
+          </div>
+        </button>
+
+        {/* Card 4: Penugasan Under */}
+        <button
+          type="button"
+          onClick={() => { setViewMode('UNDER'); setIsMobileFullscreen(true); }}
+          className="w-full bg-white rounded-2xl p-3 border border-slate-200/90 border-l-4 border-l-purple-600 shadow-xs hover:border-purple-300 flex items-center justify-between text-left transition-all cursor-pointer active:scale-[0.98]"
+        >
+          <div className="space-y-0.5 min-w-0 pr-2">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <h4 className="text-xs font-black text-slate-900 leading-tight truncate">Penugasan Under Lapangan</h4>
+            </div>
+            <p className="text-[10px] text-slate-400 truncate">Daftar PIC regu under dan anak buah di tiap pos</p>
+          </div>
+          <div className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs shrink-0">
+            ›
+          </div>
+        </button>
+      </div>
+
+      {/* 5. DUAL MODE CONTAINER: INLINE DI DESKTOP, FULLSCREEN OVERLAY DI MOBILE */}
+      <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${
+        isMobileFullscreen
+          ? 'fixed inset-0 z-50 rounded-none border-none flex flex-col md:relative md:rounded-2xl md:border md:flex-none'
+          : 'hidden md:block'
+      }`}>
+        {/* Header Fullscreen Khusus Mobile */}
+        <div className="md:hidden bg-slate-900 text-white px-3.5 py-2.5 flex items-center justify-between shrink-0 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsMobileFullscreen(false)}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-all font-bold text-sm"
+              title="Kembali"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <h3 className="text-xs font-black leading-tight text-white">
+                {viewMode === 'MATRIX' ? 'Matriks Manpower' :
+                 viewMode === 'DIV_MATRIX' ? 'Matriks Divisi x Vendor' :
+                 viewMode === 'TABLE' ? 'Tabel Baris Transaksional' :
+                 'Penugasan Under Lapangan'}
+              </h3>
+              <span className="text-[9px] text-slate-400 block">
+                Periode {startDate} s.d. {endDate}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {viewMode === 'MATRIX' && matrixShifts.length > 1 && (
+              <div className="bg-white/10 rounded-lg px-2 py-1 text-[10px]">
+                <select
+                  value={matrixShiftFilter}
+                  onChange={(e) => setMatrixShiftFilter(e.target.value)}
+                  className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL" className="text-slate-900 bg-white">Semua Shift</option>
+                  {matrixShifts.map((s) => (
+                    <option key={s} value={s} className="text-slate-900 bg-white">{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsMobileFullscreen(false)}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer text-xs font-bold"
+              title="Tutup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Hint Strip Halus Khusus Mobile */}
+        <div className="md:hidden bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-[10px] text-slate-600 shrink-0">
+          <span className="font-medium">Geser ke samping untuk melihat seluruh data &rarr;</span>
+          <span className="text-[9px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-700 font-bold">
+            {records.length} Plotingan
+          </span>
+        </div>
+
+        {/* Header Seksi & Kontrol Switcher Mode (DESKTOP) */}
+        <div className="hidden md:flex p-4 border-b border-slate-200 flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-extrabold text-sm text-slate-900">

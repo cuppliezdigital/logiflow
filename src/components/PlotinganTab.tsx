@@ -761,7 +761,7 @@ export default function PlotinganTab({
                   type="checkbox"
                   checked={selectedIds.length > 0 && selectedIds.length === plotingans.length}
                   onChange={handleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="w-4 h-4 rounded-md border-slate-300 text-sky-500 accent-sky-500 focus:ring-sky-200 cursor-pointer"
                 />
                 <span className="text-slate-700">Pilih Semua ({plotingans.length})</span>
               </label>
@@ -777,11 +777,16 @@ export default function PlotinganTab({
               const fulfillment = masuk !== undefined ? Math.round((masuk / p.targetHeadcount) * 100) : null;
               const isPagi = p.shift.name.toLowerCase().includes('pagi');
               const selisih = masuk !== undefined ? masuk - p.targetHeadcount : 0;
+              const statusBorderClass = masuk === undefined
+                ? 'border-l-4 border-l-slate-300'
+                : selisih >= 0
+                ? 'border-l-4 border-l-emerald-500'
+                : 'border-l-4 border-l-amber-500';
 
               return (
                 <div
                   key={p.id}
-                  className={`bg-white rounded-2xl p-3 border transition-all duration-150 shadow-2xs space-y-2 ${
+                  className={`bg-white rounded-2xl p-3 border transition-all duration-150 shadow-2xs space-y-2 ${statusBorderClass} ${
                     isChecked ? 'border-blue-500 ring-2 ring-blue-200/60 bg-blue-50/20' : 'border-slate-200'
                   }`}
                 >
@@ -792,7 +797,7 @@ export default function PlotinganTab({
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => handleToggleSelect(p.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                        className="w-4 h-4 rounded-md border-slate-300 text-sky-500 accent-sky-500 focus:ring-sky-200 cursor-pointer shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">

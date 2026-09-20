@@ -426,8 +426,8 @@ export default function AbsenPulangTab({
   return (
     <div className="space-y-6">
       
-      {/* 1. HEADER OPERASIONAL PULANG */}
-      <div className="bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-950 text-white rounded-2xl p-5 shadow-sm">
+      {/* 1. HEADER OPERASIONAL PULANG (DESKTOP) */}
+      <div className="hidden md:block bg-gradient-to-r from-slate-800 via-indigo-900 to-slate-950 text-white rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -443,7 +443,7 @@ export default function AbsenPulangTab({
             </p>
           </div>
 
-          {/* Sub-Tab Pill Switcher */}
+          {/* Sub-Tab Pill Switcher Desktop */}
           <div className="flex items-center bg-black/30 p-1 rounded-xl border border-white/20 self-start md:self-auto shrink-0">
             <button
               type="button"
@@ -480,8 +480,60 @@ export default function AbsenPulangTab({
         </div>
       </div>
 
-      {/* 2. BANNER REKONSILIASI KEPULANGAN (AUDIT VENDOR VS UNDER) */}
-      <div className={`rounded-2xl border p-4 shadow-xs transition-all ${
+      {/* 1. HEADER OPERASIONAL PULANG (MOBILE: ROUNDED-3XL + PILL SWITCHER) */}
+      <div className="md:hidden bg-white rounded-3xl p-3 border border-slate-200/80 shadow-xs space-y-2">
+        <div className="flex items-center justify-between px-0.5">
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Gateway Kepulangan</span>
+            <h2 className="text-sm font-black text-slate-900 tracking-tight">Absen Pulang Shift</h2>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            {availableShifts.find(s => s.id === underShiftFilter)?.name || 'Shift Aktif'}
+          </span>
+        </div>
+
+        {/* Switcher Pill Bulat Penuh */}
+        <div className="bg-slate-100 p-1 rounded-full flex items-center text-xs font-extrabold">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('VENDOR')}
+            className={`flex-1 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeSubTab === 'VENDOR'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>1. Out Vendor</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeSubTab === 'VENDOR' ? 'bg-indigo-100 text-indigo-800' : 'text-slate-400'
+            }`}>
+              {totalVendorPulangTotal} MP
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('UNDER')}
+            className={`flex-1 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeSubTab === 'UNDER'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+            <span>2. Out Under</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeSubTab === 'UNDER' ? 'bg-indigo-100 text-indigo-800' : 'text-slate-400'
+            }`}>
+              {totalUnderPulangTotal} MP
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. BANNER REKONSILIASI KEPULANGAN (DESKTOP) */}
+      <div className={`hidden md:block rounded-2xl border p-4 shadow-xs transition-all ${
         isPulangBalanced
           ? 'bg-emerald-50/70 border-emerald-300'
           : selisihPulang > 0
@@ -562,6 +614,40 @@ export default function AbsenPulangTab({
         </div>
       </div>
 
+      {/* 2. BANNER REKONSILIASI KEPULANGAN (MOBILE: SLIM CHIP) */}
+      <div className={`md:hidden rounded-2xl border p-2.5 flex items-center justify-between text-xs transition-all ${
+        isPulangBalanced
+          ? 'bg-emerald-50/70 border-emerald-200'
+          : selisihPulang > 0
+          ? 'bg-amber-50/80 border-amber-200'
+          : totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0
+          ? 'bg-slate-50 border-slate-200'
+          : 'bg-rose-50/80 border-rose-200'
+      }`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+            isPulangBalanced ? 'bg-emerald-100 text-emerald-600' :
+            selisihPulang > 0 ? 'bg-amber-100 text-amber-600' :
+            totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0 ? 'bg-slate-200 text-slate-600' :
+            'bg-rose-100 text-rose-600'
+          }`}>
+            {isPulangBalanced ? <ShieldCheck className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-extrabold text-slate-900 block leading-none truncate">Rekonsiliasi Kepulangan</span>
+            <span className="text-[9px] text-slate-500 truncate block mt-0.5">Vendor: {totalVendorPulangTotal} MP &bull; Under: {totalUnderPulangTotal} MP</span>
+          </div>
+        </div>
+        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs shrink-0 ${
+          isPulangBalanced ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+          selisihPulang > 0 ? 'bg-amber-100 text-amber-800 border-amber-200' :
+          totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0 ? 'bg-white text-slate-600 border-slate-200' :
+          'bg-rose-100 text-rose-800 border-rose-200'
+        }`}>
+          {totalVendorPulangTotal === 0 && totalUnderPulangTotal === 0 ? 'Menunggu' : isPulangBalanced ? '✓ KLOP 100%' : `${selisihPulang} Selisih`}
+        </span>
+      </div>
+
       {/* ==================================================================== */}
       {/* SUB-TAB 1: SERAH TERIMA KEPULANGAN VENDOR                            */}
       {/* ==================================================================== */}
@@ -589,122 +675,208 @@ export default function AbsenPulangTab({
                 inc.shiftId === p.shiftId && (inc.vendorId === p.vendorId || inc.vendorName?.toLowerCase() === p.vendor.name.toLowerCase())
               );
 
+              const shiftLabel = p.shift?.name
+                ? (p.shift.name.toLowerCase().startsWith('shift') ? p.shift.name : `Shift ${p.shift.name}`)
+                : '';
+
+              const statusBorderClass = !hasCheckedIn
+                ? 'border-l-4 border-l-slate-300 opacity-70'
+                : hasCheckedOut
+                ? 'border-l-4 border-l-emerald-500'
+                : 'border-l-4 border-l-indigo-600';
+
               return (
-                <div
-                  key={p.id}
-                  className={`bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex flex-col justify-between ${
-                    !hasCheckedIn
-                      ? 'border-slate-200 opacity-60'
-                      : hasCheckedOut
-                      ? 'border-emerald-300'
-                      : 'border-amber-300'
-                  }`}
-                >
-                  <div>
-                    {/* Status Header */}
-                    <div className={`px-4 py-2 flex items-center justify-between text-xs font-bold ${
-                      !hasCheckedIn
-                        ? 'bg-slate-100 text-slate-500'
-                        : hasCheckedOut
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      <span className="flex items-center gap-1.5">
-                        {!hasCheckedIn ? (
-                          <>
-                            <Clock className="w-3.5 h-3.5" />
-                            Belum Absen Masuk
-                          </>
-                        ) : hasCheckedOut ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            Sudah Checkout ({outTotal} MP)
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                            Sedang Kerja (Belum Checkout)
-                          </>
-                        )}
-                      </span>
-
-                      <span className="text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-2xs">
-                        Shift {p.shift.name}
-                      </span>
-                    </div>
-
-                    <div className="p-4 space-y-3">
-                      <div>
-                        <h3 className="font-black text-base text-slate-900 flex items-center gap-1.5">
-                          <Building2 className="w-4 h-4 text-blue-600" />
+                <React.Fragment key={p.id}>
+                  {/* TAMPILAN MOBILE (MD:HIDDEN) - ERGONOMIC THUMB ACTION + LEFT COLOR BAR */}
+                  <div className={`md:hidden bg-white rounded-3xl p-3 border border-slate-200/90 ${statusBorderClass} shadow-xs flex items-center justify-between gap-2.5 pl-3.5`}>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-xs font-black text-slate-900 leading-tight">
                           {getShortVendorName(p.vendor.name)}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Masuk: <strong className="text-slate-800">{inTotal} MP</strong> ({inReg} Reg + {inAdd} Add)
-                        </p>
+                        </h4>
+                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded shrink-0">
+                          {shiftLabel}
+                        </span>
+                        {hasCheckedOut ? (
+                          <span className="text-[8px] font-extrabold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                            ✓ Pulang {outTotal} MP
+                          </span>
+                        ) : !hasCheckedIn ? (
+                          <span className="text-[8px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+                            Belum Masuk
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-bold px-1.5 py-0.2 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                            Sedang Kerja
+                          </span>
+                        )}
                       </div>
 
-                      {/* Notifikasi Tumbang Terhubung dari Tab 3 */}
-                      {relatedTumbang.length > 0 && (
-                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-800 space-y-1">
-                          <div className="flex items-center justify-between font-bold">
-                            <span className="flex items-center gap-1.5">
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                              Data Tumbang Shift Ini:
-                            </span>
-                            <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded text-[10px] font-black">
-                              {relatedTumbang.length} Orang
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-rose-700">
-                            {relatedTumbang.map((t, idx) => (
-                              <span key={idx} className="block">
-                                &bull; Jam {t.time} ({t.category}): {t.type} di {t.division}
-                              </span>
-                            ))}
-                          </p>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate">
+                        <span>{hasCheckedOut ? `Keluar: ${outTotal}/${inTotal} MP` : `Masuk: ${inTotal} MP`}</span>
+                        <span>&bull;</span>
+                        <span className={hasCheckedOut ? 'text-emerald-700 font-bold' : 'text-slate-600'}>
+                          {hasCheckedOut ? `${outReg} Reg + ${outAdd} Add` : `${inReg} Reg + ${inAdd} Add`}
+                        </span>
+                      </div>
 
-                      {/* Rincian Pulang */}
-                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600 font-medium">Pulang Regular:</span>
-                          <span className="font-extrabold text-blue-700">{hasCheckedOut ? `${outReg} MP` : '-'}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600 font-medium">Pulang Additional:</span>
-                          <span className="font-extrabold text-amber-700">{hasCheckedOut ? `${outAdd} MP` : '-'}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 font-bold">
-                          <span className="text-slate-700">Total Pulang / Masuk:</span>
-                          <span className={hasCheckedOut ? 'text-emerald-700 font-black' : 'text-slate-500'}>
-                            {hasCheckedOut ? `${outTotal} / ${inTotal} MP` : `Masuk: ${inTotal} MP`}
+                      {relatedTumbang.length > 0 && (
+                        <div className="pt-0.5">
+                          <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded font-bold text-[9px]">
+                            <AlertCircle className="w-2.5 h-2.5 text-rose-600" /> {relatedTumbang.length} Tumbang
                           </span>
                         </div>
-                      </div>
+                      )}
+                    </div>
+
+                    {/* Tombol Aksi Jempol Kanan */}
+                    <div className="shrink-0 flex items-center">
+                      {!hasCheckedIn ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="px-2.5 py-1.5 rounded-2xl bg-slate-100 text-slate-400 font-bold text-xs border border-slate-200 cursor-not-allowed"
+                        >
+                          Terkunci
+                        </button>
+                      ) : hasCheckedOut ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenVendorModal(p)}
+                          className="px-2.5 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                        >
+                          <Edit2 className="w-3 h-3 text-slate-500" />
+                          <span>Edit</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenVendorModal(p)}
+                          className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black text-xs shadow-md shadow-indigo-600/20 flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 transition-all"
+                        >
+                          <LogOut className="w-3.5 h-3.5 text-indigo-200" />
+                          <span>Checkout</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Tombol Action */}
-                  <div className="p-4 pt-0">
-                    <button
-                      type="button"
-                      disabled={!hasCheckedIn}
-                      onClick={() => handleOpenVendorModal(p)}
-                      className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  {/* TAMPILAN DESKTOP (HIDDEN MD:FLEX) - TETAP UTUH SEPERTI ASLI */}
+                  <div
+                    className={`hidden md:flex bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex-col justify-between ${
+                      !hasCheckedIn
+                        ? 'border-slate-200 opacity-60'
+                        : hasCheckedOut
+                        ? 'border-emerald-300'
+                        : 'border-amber-300'
+                    }`}
+                  >
+                    <div>
+                      {/* Status Header */}
+                      <div className={`px-4 py-2 flex items-center justify-between text-xs font-bold ${
                         !hasCheckedIn
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          ? 'bg-slate-100 text-slate-500'
                           : hasCheckedOut
-                          ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                      }`}
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      {hasCheckedOut ? 'Edit Checkout Vendor' : 'Input Checkout Vendor (Wajib Foto)'}
-                    </button>
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        <span className="flex items-center gap-1.5">
+                          {!hasCheckedIn ? (
+                            <>
+                              <Clock className="w-3.5 h-3.5" />
+                              Belum Absen Masuk
+                            </>
+                          ) : hasCheckedOut ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              Sudah Checkout ({outTotal} MP)
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                              Sedang Kerja (Belum Checkout)
+                            </>
+                          )}
+                        </span>
+
+                        <span className="text-[11px] font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded shadow-2xs">
+                          {shiftLabel}
+                        </span>
+                      </div>
+
+                      <div className="p-4 space-y-3">
+                        <div>
+                          <h3 className="font-black text-base text-slate-900 flex items-center gap-1.5">
+                            <Building2 className="w-4 h-4 text-blue-600" />
+                            {getShortVendorName(p.vendor.name)}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Masuk: <strong className="text-slate-800">{inTotal} MP</strong> ({inReg} Reg + {inAdd} Add)
+                          </p>
+                        </div>
+
+                        {/* Notifikasi Tumbang Terhubung dari Tab 3 */}
+                        {relatedTumbang.length > 0 && (
+                          <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-800 space-y-1">
+                            <div className="flex items-center justify-between font-bold">
+                              <span className="flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                Data Tumbang Shift Ini:
+                              </span>
+                              <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded text-[10px] font-black">
+                                {relatedTumbang.length} Orang
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-rose-700">
+                              {relatedTumbang.map((t, idx) => (
+                                <span key={idx} className="block">
+                                  &bull; Jam {t.time} ({t.category}): {t.type} di {t.division}
+                                </span>
+                              ))}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Rincian Pulang */}
+                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-600 font-medium">Pulang Regular:</span>
+                            <span className="font-extrabold text-blue-700">{hasCheckedOut ? `${outReg} MP` : '-'}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-600 font-medium">Pulang Additional:</span>
+                            <span className="font-extrabold text-amber-700">{hasCheckedOut ? `${outAdd} MP` : '-'}</span>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 font-bold">
+                            <span className="text-slate-700">Total Pulang / Masuk:</span>
+                            <span className={hasCheckedOut ? 'text-emerald-700 font-black' : 'text-slate-500'}>
+                              {hasCheckedOut ? `${outTotal} / ${inTotal} MP` : `Masuk: ${inTotal} MP`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tombol Action */}
+                    <div className="p-4 pt-0">
+                      <button
+                        type="button"
+                        disabled={!hasCheckedIn}
+                        onClick={() => handleOpenVendorModal(p)}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          !hasCheckedIn
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : hasCheckedOut
+                            ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                        }`}
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        {hasCheckedOut ? 'Edit Checkout Vendor' : 'Input Checkout Vendor (Wajib Foto)'}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </React.Fragment>
               );
             })}
           </div>
@@ -718,10 +890,10 @@ export default function AbsenPulangTab({
         <div className="space-y-4">
           
           {/* Shift Filter */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600">Filter Shift:</span>
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <span className="text-xs font-bold text-slate-600 shrink-0">Filter Shift:</span>
+              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs shrink-0">
                 <button
                   type="button"
                   onClick={() => setUnderShiftFilter('ALL')}
@@ -750,7 +922,7 @@ export default function AbsenPulangTab({
               </div>
             </div>
 
-            <span className="text-xs font-bold text-slate-500">
+            <span className="text-xs font-bold text-slate-500 shrink-0">
               Total {filteredUnder.length} Regu Terdaftar
             </span>
           </div>
@@ -771,8 +943,8 @@ export default function AbsenPulangTab({
                 return (
                   <div
                     key={u.id}
-                    className={`bg-white rounded-2xl border transition-all p-4 flex flex-col justify-between shadow-xs hover:shadow-md ${
-                      isUnderCheckedOut ? 'border-emerald-300' : 'border-amber-300'
+                    className={`bg-white rounded-2xl border transition-all p-4 flex flex-col justify-between shadow-xs hover:shadow-md border-l-4 ${
+                      isUnderCheckedOut ? 'border-emerald-300 border-l-emerald-500' : 'border-amber-300 border-l-amber-500'
                     }`}
                   >
                     <div>

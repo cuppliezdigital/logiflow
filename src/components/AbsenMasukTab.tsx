@@ -713,8 +713,8 @@ export default function AbsenMasukTab({
   return (
     <div className="space-y-6">
       
-      {/* 1. HEADER ALUR KERJA 3 AKTOR OPERASIONAL */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 text-white rounded-2xl p-5 shadow-sm">
+      {/* 1. HEADER ALUR KERJA (DESKTOP) */}
+      <div className="hidden md:block bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 text-white rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -729,7 +729,7 @@ export default function AbsenMasukTab({
             </p>
           </div>
 
-          {/* Sub-Tab Pill Switcher */}
+          {/* Sub-Tab Pill Switcher Desktop */}
           <div className="flex items-center bg-black/25 p-1 rounded-xl border border-white/20 self-start md:self-auto shrink-0">
             <button
               type="button"
@@ -766,8 +766,60 @@ export default function AbsenMasukTab({
         </div>
       </div>
 
-      {/* 2. BANNER REKONSILIASI INTEGRITAS (AUDIT BALANCING VENDOR VS UNDER) */}
-      <div className={`rounded-2xl border p-4 shadow-xs transition-all ${
+      {/* 1. HEADER ALUR KERJA (MOBILE: ROUNDED-3XL + PILL SWITCHER) */}
+      <div className="md:hidden bg-white rounded-3xl p-3 border border-slate-200/80 shadow-xs space-y-2">
+        <div className="flex items-center justify-between px-0.5">
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Gateway Kehadiran</span>
+            <h2 className="text-sm font-black text-slate-900 tracking-tight">Absen Masuk Shift</h2>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+            {availableShifts.find(s => s.id === underShiftFilter)?.name || 'Shift Aktif'}
+          </span>
+        </div>
+
+        {/* Switcher Pill Bulat Penuh */}
+        <div className="bg-slate-100 p-1 rounded-full flex items-center text-xs font-extrabold">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('VENDOR')}
+            className={`flex-1 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeSubTab === 'VENDOR'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>1. Vendor</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeSubTab === 'VENDOR' ? 'bg-blue-100 text-blue-800' : 'text-slate-400'
+            }`}>
+              {totalVendorTotal} MP
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('UNDER')}
+            className={`flex-1 py-1.5 px-3 rounded-full flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeSubTab === 'UNDER'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+            <span>2. Under Pos</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeSubTab === 'UNDER' ? 'bg-indigo-100 text-indigo-800' : 'text-slate-400'
+            }`}>
+              {totalUnderTotal} MP
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. BANNER REKONSILIASI (DESKTOP) */}
+      <div className={`hidden md:block rounded-2xl border p-4 shadow-xs transition-all ${
         isBalanced
           ? 'bg-emerald-50/70 border-emerald-300'
           : selisihTotal > 0
@@ -853,6 +905,40 @@ export default function AbsenMasukTab({
         </div>
       </div>
 
+      {/* 2. BANNER REKONSILIASI (MOBILE: SLIM CHIP) */}
+      <div className={`md:hidden rounded-2xl border p-2.5 flex items-center justify-between text-xs transition-all ${
+        isBalanced
+          ? 'bg-emerald-50/70 border-emerald-200'
+          : selisihTotal > 0
+          ? 'bg-amber-50/80 border-amber-200'
+          : totalVendorTotal === 0 && totalUnderTotal === 0
+          ? 'bg-slate-50 border-slate-200'
+          : 'bg-rose-50/80 border-rose-200'
+      }`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+            isBalanced ? 'bg-emerald-100 text-emerald-600' :
+            selisihTotal > 0 ? 'bg-amber-100 text-amber-600' :
+            totalVendorTotal === 0 && totalUnderTotal === 0 ? 'bg-slate-200 text-slate-600' :
+            'bg-rose-100 text-rose-600'
+          }`}>
+            {isBalanced ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+          </div>
+          <div className="min-w-0">
+            <span className="text-[10px] font-extrabold text-slate-900 block leading-none truncate">Audit Serah Terima</span>
+            <span className="text-[9px] text-slate-500 truncate block mt-0.5">Vendor: {totalVendorTotal} MP &bull; Under: {totalUnderTotal} MP</span>
+          </div>
+        </div>
+        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border shadow-2xs shrink-0 ${
+          isBalanced ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+          selisihTotal > 0 ? 'bg-amber-100 text-amber-800 border-amber-200' :
+          totalVendorTotal === 0 && totalUnderTotal === 0 ? 'bg-white text-slate-600 border-slate-200' :
+          'bg-rose-100 text-rose-800 border-rose-200'
+        }`}>
+          {totalVendorTotal === 0 && totalUnderTotal === 0 ? 'Menunggu' : isBalanced ? '✓ KLOP' : `${selisihTotal} Selisih`}
+        </span>
+      </div>
+
       {/* ==================================================================== */}
       {/* KONTEN SUB-TAB 1: SERAH TERIMA PASUKAN VENDOR                        */}
       {/* ==================================================================== */}
@@ -917,14 +1003,92 @@ export default function AbsenMasukTab({
                 }
 
                 const totalPhotosOnCard = cardRegPhotos.length + cardAddPhotos.length;
+                const statusBorderClass = hasCheckedIn
+                  ? 'border-l-4 border-l-emerald-500'
+                  : 'border-l-4 border-l-blue-600';
 
                 return (
-                  <div
-                    key={p.id}
-                    className={`bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex flex-col justify-between ${
-                      hasCheckedIn ? 'border-emerald-200' : 'border-slate-200 hover:border-amber-300'
-                    }`}
-                  >
+                  <React.Fragment key={p.id}>
+                    {/* TAMPILAN MOBILE (MD:HIDDEN) - ERGONOMIC THUMB ACTION + LEFT BAR */}
+                    <div className={`md:hidden bg-white rounded-3xl p-3 border border-slate-200/90 ${statusBorderClass} shadow-xs flex items-center justify-between gap-2.5 pl-3.5`}>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">
+                            {getShortVendorName(p.vendor.name)}
+                          </h4>
+                          {hasCheckedIn ? (
+                            <span className="text-[8px] font-extrabold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                              ✓ Masuk {actualTotal} MP
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-bold px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                              Menunggu
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate">
+                          <span>{hasCheckedIn ? `Realisasi: ${actualTotal}/${p.targetHeadcount} MP` : `Target: ${p.targetHeadcount} MP`}</span>
+                          <span>&bull;</span>
+                          <span className={hasCheckedIn ? 'text-slate-400' : 'text-blue-600 font-semibold'}>
+                            {hasCheckedIn ? `${actualReg} Reg + ${actualAdd} Add` : `${p.targetRegular || 0} Reg + ${p.targetAdditional || 0} Add`}
+                          </span>
+                        </div>
+                        {totalPhotosOnCard > 0 && (
+                          <div className="pt-0.5">
+                            <span 
+                              onClick={() => {
+                                if (cardRegPhotos[0]) setLightboxPhoto({ url: cardRegPhotos[0].url, title: `${getShortVendorName(p.vendor.name)}: ${cardRegPhotos[0].section}` });
+                                else if (cardAddPhotos[0]) setLightboxPhoto({ url: cardAddPhotos[0].url, title: `${getShortVendorName(p.vendor.name)}: ${cardAddPhotos[0].section}` });
+                              }}
+                              className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-bold text-[9px] cursor-pointer"
+                            >
+                              <Camera className="w-2.5 h-2.5" /> {totalPhotosOnCard} foto
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tombol Aksi Jempol Kanan */}
+                      <div className="shrink-0 flex items-center gap-1">
+                        {hasCheckedIn ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenVendorModal(p)}
+                              className="px-2.5 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                            >
+                              <Edit2 className="w-3 h-3 text-slate-500" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLateModal(p)}
+                              className="px-2 py-1.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 flex items-center gap-0.5 cursor-pointer transition-all active:scale-95"
+                              title="Input Susulan / Telat"
+                            >
+                              <Plus className="w-3 h-3 text-amber-600" />
+                              <span className="text-[10px]">Susulan</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenVendorModal(p)}
+                            className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs shadow-md shadow-blue-600/20 flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 transition-all"
+                          >
+                            <LogIn className="w-3.5 h-3.5 text-blue-200" />
+                            <span>Input</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TAMPILAN DESKTOP (HIDDEN MD:FLEX) - TETAP UTUH SEPERTI ASLI */}
+                    <div
+                      className={`hidden md:flex bg-white rounded-2xl border transition-all overflow-hidden shadow-xs hover:shadow-md flex-col justify-between ${
+                        hasCheckedIn ? 'border-emerald-200' : 'border-slate-200 hover:border-amber-300'
+                      }`}
+                    >
                     <div>
                       {/* Status Strip Bar */}
                       <div
@@ -1129,6 +1293,7 @@ export default function AbsenMasukTab({
                       )}
                     </div>
                   </div>
+                </React.Fragment>
                 );
               })}
             </div>
