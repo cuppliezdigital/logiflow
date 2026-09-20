@@ -490,43 +490,49 @@ export default function PlotinganTab({
         </div>
       </div>
 
-      {/* 2. HEADER TABEL, TOMBOL KELOLA VENDOR & TOMBOL INPUT SEKALIGUS / SATUAN */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* 2. HEADER TABEL, TOMBOL KELOLA VENDOR & TOMBOL INPUT SEKALIGUS / SATUAN (SEBARIS DI HP) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Daftar Plotingan ({selectedDate})</h2>
+          <h2 className="text-xs sm:text-sm md:text-lg font-bold text-slate-900 tracking-tight">
+            Daftar Plotingan ({selectedDate})
+          </h2>
           <p className="hidden md:block text-xs text-slate-500">Kebutuhan total Manpower (MP) per vendor. Pembagian Reg & Add ditentukan saat absen masuk di hari H.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 3 Tombol Aksi Sebaris Rapi (Di HP sebaris dengan Massal dominan flex-1) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Tombol Buka Modal Kelola Vendor */}
           <button
             type="button"
             onClick={() => setIsVendorModalOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 transition-all cursor-pointer"
+            className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] sm:text-xs py-2 px-2.5 sm:px-3.5 sm:py-2.5 rounded-xl border border-slate-200 sm:border-slate-300 shadow-2xs sm:shadow-xs flex items-center justify-center gap-1 shrink-0 transition-all cursor-pointer"
             title="Tambah atau kelola daftar vendor mitra"
           >
-            <Settings className="w-3.5 h-3.5 text-slate-500" />
-            Kelola Vendor
+            <Settings className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="hidden sm:inline">Kelola Vendor</span>
+            <span className="sm:hidden">Kelola</span>
           </button>
 
           {/* Tombol Tambah Plotingan Satuan */}
           <button
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 transition-all cursor-pointer"
+            className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] sm:text-xs py-2 px-2.5 sm:px-3.5 sm:py-2.5 rounded-xl border border-slate-200 sm:border-slate-300 shadow-2xs sm:shadow-xs flex items-center justify-center gap-1 shrink-0 transition-all cursor-pointer"
             title="Tambah kuota 1 vendor saja"
           >
-            <Plus className="w-3.5 h-3.5 text-slate-500" />
-            Tambah Satuan
+            <Plus className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="hidden sm:inline">Tambah Satuan</span>
+            <span className="sm:hidden">+ Satuan</span>
           </button>
 
-          {/* TOMBOL UTAMA: Input Ploting Sekaligus (Massal) */}
+          {/* TOMBOL UTAMA: Input Ploting Sekaligus (Massal) - Flex-1 di HP */}
           <button
             onClick={() => handleOpenBatchModal()}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+            className="flex-1 sm:flex-none bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-[11px] sm:text-xs py-2 px-2.5 sm:px-4 sm:py-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
             title="Input kuota seluruh vendor sekaligus dalam 1 tabel cepat"
           >
-            <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
-            Input Sekaligus (Massal)
+            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 fill-amber-300 shrink-0" />
+            <span className="hidden sm:inline">Input Sekaligus (Massal)</span>
+            <span className="sm:hidden truncate">Input Massal</span>
           </button>
         </div>
       </div>
