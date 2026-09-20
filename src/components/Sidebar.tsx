@@ -14,8 +14,10 @@ import {
   FileSpreadsheet, 
   Warehouse, 
   AlertCircle,
-  X
+  X,
+  Palette
 } from 'lucide-react';
+import { AppTheme, THEME_OPTIONS } from '@/types/theme';
 
 interface SidebarProps {
   activeTab: 'plotingan' | 'masuk' | 'tumbang' | 'pulang' | 'laporan';
@@ -23,6 +25,8 @@ interface SidebarProps {
   tumbangCount?: number;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  theme?: AppTheme;
+  setTheme?: (theme: AppTheme) => void;
 }
 
 export default function Sidebar({
@@ -31,6 +35,8 @@ export default function Sidebar({
   tumbangCount = 0,
   isMobileOpen,
   setIsMobileOpen,
+  theme = 'original',
+  setTheme,
 }: SidebarProps) {
   
   const navItems = [
@@ -151,7 +157,46 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* 3. STATUS SISTEM BAWAH */}
+      {/* 3. QUICK THEME SELECTOR */}
+      {setTheme && (
+        <div className="px-4 py-2.5 border-t border-slate-800/80 bg-slate-950/30">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Palette className="w-3 h-3 text-sky-400" />
+              <span>Tema Warna</span>
+            </span>
+            <span className="text-[9px] text-slate-500 font-mono">
+              {theme === 'original' ? 'Asli' : theme === 'navy' ? 'Navy' : theme === 'soft' ? 'Soft' : 'Dark'}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {THEME_OPTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTheme(t.id)}
+                className={`py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  theme === t.id
+                    ? 'border-sky-400 bg-sky-500/20 text-white font-bold'
+                    : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                title={`${t.name} - ${t.subtitle}`}
+              >
+                <div className="flex -space-x-1">
+                  {t.colors.slice(0, 2).map((c, i) => (
+                    <span key={i} className={`w-2 h-2 rounded-full border border-slate-900 ${c}`} />
+                  ))}
+                </div>
+                <span className="text-[9px] truncate max-w-full leading-none">
+                  {t.id === 'original' ? 'Asli' : t.id === 'navy' ? 'Navy' : t.id === 'soft' ? 'Soft' : 'Dark'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. STATUS SISTEM BAWAH */}
       <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-[11px] text-slate-400 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -165,7 +210,13 @@ export default function Sidebar({
   return (
     <>
       {/* A. DESKTOP PERMANENT SIDEBAR */}
-      <aside className="hidden md:flex flex-col w-64 bg-slate-900 text-white min-h-screen border-r border-slate-800 sticky top-0 h-screen shrink-0 z-30">
+      <aside className={`hidden md:flex flex-col w-64 text-white min-h-screen border-r sticky top-0 h-screen shrink-0 z-30 ${
+        theme === 'navy'
+          ? 'bg-slate-950 border-blue-900/60'
+          : theme === 'dark'
+          ? 'bg-slate-950 border-slate-800'
+          : 'bg-slate-900 border-slate-800'
+      }`}>
         {SidebarContent}
       </aside>
 

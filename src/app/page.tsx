@@ -20,6 +20,7 @@ import AbsenPulangTab from '@/components/AbsenPulangTab';
 import LaporanTab from '@/components/LaporanTab';
 import { getMasterData, getPlotingans, getTumbangIncidents, getDatesWithData } from '@/app/actions';
 import { Loader2 } from 'lucide-react';
+import { AppTheme } from '@/types/theme';
 
 export default function Home() {
   // --------------------------------------------------------------------------
@@ -36,6 +37,26 @@ export default function Home() {
 
   // State menu drawer mobile (khusus layar HP)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // State tema tampilan aktif (default: 'original', tersimpan otomatis di localStorage)
+  const [theme, setTheme] = useState<AppTheme>('original');
+
+  // Muat tema yang tersimpan di browser saat awal buka aplikasi
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('logiflow_theme') as AppTheme;
+      if (savedTheme && ['original', 'navy', 'soft', 'dark'].includes(savedTheme)) {
+        setTheme(savedTheme);
+      }
+    } catch {}
+  }, []);
+
+  const handleSetTheme = (newTheme: AppTheme) => {
+    setTheme(newTheme);
+    try {
+      localStorage.setItem('logiflow_theme', newTheme);
+    } catch {}
+  };
 
   // Master data: daftar vendor aktif dan shift kerja (Shift Pagi & Shift Malam)
   const [vendors, setVendors] = useState<any[]>([]);
@@ -122,8 +143,16 @@ export default function Home() {
     await loadPlotinganData(selectedDate);
   };
 
+  // Dynamic background styling per theme
+  const themeBgClasses: Record<AppTheme, string> = {
+    original: 'bg-slate-100/70 text-slate-800',
+    navy: 'bg-blue-50/40 text-slate-800',
+    soft: 'bg-slate-50 text-slate-800',
+    dark: 'bg-slate-950 text-slate-200',
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100/70 flex flex-col md:flex-row font-sans text-slate-800">
+    <div className={`min-h-screen flex flex-col md:flex-row font-sans transition-colors duration-200 ${themeBgClasses[theme]}`}>
       
       {/* 1. SIDEBAR KIRI (LAPTOP / PC) & MOBILE SLIDE-IN DRAWER (HP) */}
       <Sidebar
@@ -132,6 +161,8 @@ export default function Home() {
         tumbangCount={tumbangIncidents.length}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
+        theme={theme}
+        setTheme={handleSetTheme}
       />
 
       {/* 2. AREA KONTEN UTAMA */}
@@ -144,6 +175,8 @@ export default function Home() {
           setSelectedDate={handleDateChange}
           datesWithData={datesWithData}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          theme={theme}
+          setTheme={handleSetTheme}
         />
 
         {/* MAIN BODY PER MODUL OPERASIONAL */}
@@ -212,9 +245,15 @@ export default function Home() {
         </main>
 
         {/* 3. FOOTER APLIKASI (Desktop Only) */}
-        <footer className="hidden md:block bg-white border-t border-slate-200 py-3.5 text-center text-xs text-slate-400 mt-auto">
+        <footer className={`hidden md:block border-t py-3.5 text-center text-xs mt-auto transition-colors ${
+          theme === 'navy'
+            ? 'bg-slate-950 border-blue-900/60 text-slate-400'
+            : theme === 'dark'
+            ? 'bg-slate-900 border-slate-800 text-slate-500'
+            : 'bg-white border-slate-200 text-slate-400'
+        }`}>
           <p>
-            &copy; {new Date().getFullYear()} <strong className="text-slate-700 font-bold">Absensi</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
+            &copy; {new Date().getFullYear()} <strong className={theme === 'dark' ? 'text-slate-300 font-bold' : 'text-slate-700 font-bold'}>Absensi</strong> &bull; Sistem Monitoring & Integritas Manpower Logistik
           </p>
         </footer>
 
@@ -225,6 +264,7 @@ export default function Home() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         tumbangCount={tumbangIncidents.length}
+        theme={theme}
       />
 
     </div>
