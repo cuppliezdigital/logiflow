@@ -149,10 +149,6 @@ export default function PlotinganTab({
   const uniqueVendorsCount = new Set(plotingans.map((p) => p.vendorId)).size;
   const totalMasuk = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualHeadcount || 0), 0);
   const overallFulfillment = totalTarget > 0 ? Math.round((totalMasuk / totalTarget) * 100) : 0;
-  const totalMasukReg = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualRegular || 0), 0);
-  const totalMasukAdd = plotingans.reduce((sum, p) => sum + (p.attendanceIn?.actualAdditional || 0), 0);
-  const ringCircumference = 163.36;
-  const ringOffset = totalTarget > 0 ? Math.max(0, ringCircumference - (overallFulfillment / 100) * ringCircumference) : ringCircumference;
 
   // --------------------------------------------------------------------------
   // EVENT HANDLERS
@@ -384,92 +380,55 @@ export default function PlotinganTab({
   return (
     <div className="space-y-6">
       
-      {/* 1.A HERO TELEMETRY CARD DI HP (CIRCULAR PROGRESS GAUGE SEPERTI DI DEMO) */}
-      <div className="md:hidden bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Realisasi Hadir</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-3xl font-black text-slate-900 tracking-tight">{totalMasuk}</span>
-              <span className="text-xs font-bold text-slate-400">/ {totalTarget} Target MP</span>
-            </div>
-            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-0.5">
-              <TrendingUp className="w-3 h-3 text-emerald-500" />
-              {overallFulfillment}% Terpenuhi &bull; {overallFulfillment >= 100 ? 'Lengkap' : 'Shift Berjalan'}
-            </span>
-          </div>
-
-          {/* Circular Metric Progress Ring */}
-          <div className="relative w-16 h-16 flex items-center justify-center">
-            <svg className="w-16 h-16 transform -rotate-90">
-              <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="5" className="text-slate-100" fill="transparent" />
-              <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="5" className="text-sky-500" fill="transparent"
-                strokeDasharray={ringCircumference} strokeDashoffset={ringOffset} strokeLinecap="round" />
-            </svg>
-            <span className="absolute text-[11px] font-mono font-black text-slate-900">{overallFulfillment}%</span>
-          </div>
-        </div>
-
-        {/* 3-Segment Metric Strip */}
-        <div className="pt-2.5 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-[10px]">
-          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
-            <span className="text-slate-400 block text-[9px] font-bold">REGULAR</span>
-            <strong className="text-blue-700 font-black text-xs">{totalMasukReg} MP</strong>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
-            <span className="text-slate-400 block text-[9px] font-bold">ADDITIONAL</span>
-            <strong className="text-amber-700 font-black text-xs">{totalMasukAdd} MP</strong>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-1.5 border border-slate-100">
-            <span className="text-slate-400 block text-[9px] font-bold">VENDOR</span>
-            <strong className="text-slate-700 font-black text-xs">{uniqueVendorsCount} Vendor</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* 1.B KARTU STATISTIK DESKTOP / LAPTOP */}
-      <div className="hidden md:grid md:grid-cols-3 gap-4">
+      {/* 1. KARTU STATISTIK RINGKASAN DI BAGIAN ATAS (RESPONSIF: HP & LAPTOP) */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {/* Total Target Kebutuhan (MP) */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-xs sm:shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Target Kebutuhan</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              {totalTarget} <span className="text-sm font-semibold text-slate-500">MP</span>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-tight sm:tracking-wider leading-tight">
+              Total Target Kebutuhan
+            </p>
+            <p className="text-base sm:text-2xl font-black text-slate-900 mt-1">
+              {totalTarget} <span className="text-[10px] sm:text-sm font-semibold text-slate-500">MP</span>
             </p>
           </div>
-          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center font-bold">
-            <Users className="w-6 h-6" />
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center font-bold shrink-0 ml-1">
+            <Users className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
 
         {/* Total Vendor Terjadwal */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-xs sm:shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vendor Terjadwal</p>
-            <p className="text-2xl font-black text-blue-600 mt-1">
-              {uniqueVendorsCount} <span className="text-sm font-semibold text-slate-500">Vendor</span>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-tight sm:tracking-wider leading-tight">
+              Vendor Terjadwal
+            </p>
+            <p className="text-base sm:text-2xl font-black text-blue-600 mt-1">
+              {uniqueVendorsCount} <span className="text-[10px] sm:text-sm font-semibold text-slate-500">Vendor</span>
             </p>
           </div>
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
-            <Building2 className="w-6 h-6" />
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold shrink-0 ml-1">
+            <Building2 className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        {/* Total Realisasi Hadir Pasukan di Awal Shift */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+        {/* Total Realisasi Hadir */}
+        <div className="bg-white rounded-2xl p-3 sm:p-5 border border-slate-200 shadow-xs sm:shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Realisasi Hadir</p>
-            <p className="text-2xl font-black text-emerald-600 mt-1">
-              {totalMasuk} <span className="text-sm font-semibold text-slate-500">Orang</span>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-tight sm:tracking-wider leading-tight">
+              Realisasi Hadir
+            </p>
+            <p className="text-base sm:text-2xl font-black text-emerald-600 mt-1 flex flex-wrap items-baseline gap-1">
+              {totalMasuk} <span className="text-[10px] sm:text-sm font-semibold text-slate-500">Orang</span>
               {totalTarget > 0 && (
-                <span className="text-xs font-bold ml-2 text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                <span className="text-[9px] sm:text-xs font-bold text-emerald-700 bg-emerald-100 px-1.5 sm:px-2 py-0.5 rounded-full">
                   {overallFulfillment}%
                 </span>
               )}
             </p>
           </div>
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
-            <TrendingUp className="w-6 h-6" />
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold shrink-0 ml-1">
+            <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
