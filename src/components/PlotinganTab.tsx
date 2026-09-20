@@ -781,131 +781,102 @@ export default function PlotinganTab({
               return (
                 <div
                   key={p.id}
-                  className={`bg-white rounded-2xl p-4 border transition-all duration-150 shadow-xs space-y-3 ${
+                  className={`bg-white rounded-2xl p-3 border transition-all duration-150 shadow-2xs space-y-2 ${
                     isChecked ? 'border-blue-500 ring-2 ring-blue-200/60 bg-blue-50/20' : 'border-slate-200'
                   }`}
                 >
-                  {/* Header Card: Checkbox + Vendor Name + Status Badge */}
-                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
-                    <div className="flex items-center gap-2.5">
+                  {/* Baris Atas: Checkbox + Nama Vendor + Status Badge + Tombol Aksi di Kanan */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => handleToggleSelect(p.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-0.5"
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
                       />
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${
                             masuk === undefined ? 'bg-slate-300' :
                             selisih >= 0 ? 'bg-emerald-500' : 'bg-amber-500'
                           }`} />
-                          <h4 className="text-sm font-black text-slate-900 leading-tight">
+                          <h4 className="text-xs font-black text-slate-900 leading-tight truncate">
                             {p.vendor.name}
                           </h4>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 mt-0.5 ml-3.5">
-                          {isPagi ? (
-                            <span className="flex items-center gap-0.5 text-amber-600">
-                              <Sun className="w-3 h-3 text-amber-500" />
-                              {p.shift.name}
-                            </span>
+                          {/* Badge Status */}
+                          {masuk !== undefined ? (
+                            selisih >= 0 ? (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                Lengkap
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                                {selisih} Kurang
+                              </span>
+                            )
                           ) : (
-                            <span className="flex items-center gap-0.5 text-indigo-600">
-                              <Moon className="w-3 h-3 text-indigo-500" />
-                              {p.shift.name}
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
+                              Menunggu
                             </span>
                           )}
-                          <span>&bull;</span>
-                          <span className="flex items-center gap-0.5 text-slate-600">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            {p.workingHours || 'Jam Fleksibel'}
+                        </div>
+
+                        {/* Shift, Jam & PIC dalam 1 baris halus */}
+                        <div className="flex items-center gap-1 text-[9px] font-semibold text-slate-400 mt-0.5 truncate">
+                          <span className={isPagi ? 'text-amber-600 font-bold' : 'text-indigo-600 font-bold'}>
+                            {p.shift.name}
                           </span>
+                          <span>&bull;</span>
+                          <span className="truncate">{p.workingHours || 'Jam Fleksibel'}</span>
+                          {p.vendor.picName && (
+                            <>
+                              <span>&bull;</span>
+                              <span className="text-slate-600 font-medium truncate">PIC: {p.vendor.picName}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Status Badge */}
-                    <div>
-                      {masuk !== undefined ? (
-                        selisih >= 0 ? (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Lengkap
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
-                            {selisih} Kurang
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500">
-                          Menunggu
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 2-Column Metrics Box: Target vs Realisasi */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs">
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">
-                        Target Kuota
-                      </span>
-                      <strong className="text-base font-black text-slate-900">
-                        {p.targetHeadcount} <span className="text-[10px] font-semibold text-slate-500">MP</span>
-                      </strong>
-                      {p.notes && (
-                        <span className="text-[9px] text-slate-500 block truncate mt-0.5">
-                          {p.notes}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">
-                        Realisasi Hadir
-                      </span>
-                      {masuk !== undefined ? (
-                        <div>
-                          <strong className="text-base font-black text-blue-700">
-                            {masuk} <span className="text-[10px] font-bold text-emerald-600">({fulfillment}%)</span>
-                          </strong>
-                          <div className="text-[9px] font-semibold text-slate-500 mt-0.5 flex items-center gap-1">
-                            <span className="text-blue-600">R: {masukReg}</span>
-                            <span>&bull;</span>
-                            <span className="text-amber-600">A: {masukAdd}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs font-semibold text-slate-400 italic">Belum absen</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card Footer: PIC Info + Action Buttons (Edit & Hapus) */}
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <div className="text-[10px] text-slate-400 truncate max-w-[160px]">
-                      {p.vendor.picName ? (
-                        <span>PIC: <strong className="text-slate-600 font-semibold">{p.vendor.picName}</strong></span>
-                      ) : (
-                        <span className="text-slate-300">Tanpa PIC</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
+                    {/* Tombol Aksi Langsung di Kanan Atas */}
+                    <div className="flex items-center gap-1 shrink-0 ml-1">
                       <button
                         onClick={() => handleOpenEdit(p)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                        className="flex items-center gap-0.5 px-2 py-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Plotingan"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-3 h-3" />
                         <span>Edit</span>
                       </button>
                       <button
                         onClick={() => handleDelete(p.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
-                        title="Hapus"
+                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Hapus Plotingan"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Baris Bawah: Strip Metrik 2 Kolom Ringkas */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl py-1.5 px-2.5 border border-slate-100 text-xs">
+                    <div className="flex items-center justify-between pr-2 border-r border-slate-200/60">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Target:</span>
+                      <strong className="text-xs font-black text-slate-900">
+                        {p.targetHeadcount} <span className="text-[9px] font-normal text-slate-500">MP</span>
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between pl-1">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Hadir:</span>
+                      {masuk !== undefined ? (
+                        <div className="flex items-baseline gap-1">
+                          <strong className="text-xs font-black text-blue-700">{masuk}</strong>
+                          <span className="text-[9px] font-bold text-emerald-600">({fulfillment}%)</span>
+                          <span className="text-[8px] font-semibold text-slate-400">(R:{masukReg}/A:{masukAdd})</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-400 italic">Belum absen</span>
+                      )}
                     </div>
                   </div>
                 </div>
