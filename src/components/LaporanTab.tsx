@@ -466,7 +466,7 @@ export default function LaporanTab({
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Matriks KPI</span>
+                <span>Matriks Manpower</span>
               </button>
               <button
                 type="button"
