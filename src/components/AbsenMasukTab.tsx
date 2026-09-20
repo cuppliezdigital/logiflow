@@ -179,6 +179,9 @@ export default function AbsenMasukTab({
   // Filter shift pada Sub-Tab Under ('ALL' atau ID shift spesifik)
   const [underShiftFilter, setUnderShiftFilter] = useState<string>('ALL');
 
+  // Filter divisi khusus tampilan mobile ('ALL' atau key divisi spesifik)
+  const [mobileUnderDivFilter, setMobileUnderDivFilter] = useState<string>('ALL');
+
   // Daftar penugasan regu Under dari database
   const [underAssignments, setUnderAssignments] = useState<any[]>([]);
   const [loadingUnder, setLoadingUnder] = useState<boolean>(false);
@@ -1307,8 +1310,8 @@ export default function AbsenMasukTab({
       {activeSubTab === 'UNDER' && (
         <div className="space-y-6">
           
-          {/* Toolbar Kontrol: Filter Shift & Tombol Tambah Under */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          {/* Toolbar Kontrol Desktop */}
+          <div className="hidden md:flex bg-white rounded-2xl border border-slate-200 p-4 items-center justify-between gap-4 shadow-xs">
             
             {/* Filter Shift Kerja */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1369,8 +1372,223 @@ export default function AbsenMasukTab({
             </div>
           </div>
 
-          {/* RENDERING 5 DIVISI OPERASIONAL GUDANG */}
-          <div className="space-y-6">
+          {/* Toolbar Khusus Mobile: Filter Shift & Tombol Tambah Under Cepat */}
+          <div className="md:hidden bg-white rounded-2xl p-2.5 border border-slate-200 shadow-xs flex items-center gap-2">
+            <div className="flex-1 bg-slate-100 p-1 rounded-full flex text-[10px] font-extrabold text-center">
+              <button
+                type="button"
+                onClick={() => setUnderShiftFilter('ALL')}
+                className={`flex-1 py-1 rounded-full transition-all cursor-pointer ${
+                  underShiftFilter === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Semua
+              </button>
+              {availableShifts.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setUnderShiftFilter(s.id)}
+                  className={`flex-1 py-1 rounded-full transition-all cursor-pointer ${
+                    underShiftFilter === s.id
+                      ? 'bg-white text-slate-900 shadow-xs font-black'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {s.name.toLowerCase().includes('pagi') ? 'Pagi' : 'Malam'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenAddUnder(mobileUnderDivFilter === 'ALL' || mobileUnderDivFilter === 'SORTIR' ? 'BONGKARAN' : mobileUnderDivFilter)}
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1 shrink-0 active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Under</span>
+            </button>
+          </div>
+
+          {/* BAR PILIHAN DIVISI RAMPING KHUSUS HP (MENGGANTIKAN 5 KOTAK RAKSASA!) */}
+          <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setMobileUnderDivFilter('ALL')}
+              className={`px-3 py-1.5 rounded-full font-bold text-[10px] shrink-0 transition-all cursor-pointer ${
+                mobileUnderDivFilter === 'ALL'
+                  ? 'bg-slate-900 text-white font-black shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Semua Pos ({filteredUnder.length})
+            </button>
+            {[
+              { key: 'BONGKARAN', label: 'Bongkaran' },
+              { key: 'MUATAN', label: 'Muatan' },
+              { key: 'SORTIR', label: 'Sortir' },
+              { key: 'FIFO', label: 'FIFO' },
+              { key: 'REPACK', label: 'Repack' },
+            ].map((div) => {
+              const count = div.key === 'SORTIR'
+                ? filteredUnder.filter((u) => u.division.startsWith('SORTIR')).length
+                : filteredUnder.filter((u) => u.division === div.key).length;
+              const isSelected = mobileUnderDivFilter === div.key;
+              return (
+                <button
+                  key={div.key}
+                  type="button"
+                  onClick={() => setMobileUnderDivFilter(div.key)}
+                  className={`px-2.5 py-1.5 rounded-full font-bold text-[10px] shrink-0 transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-slate-900 text-white font-black shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {div.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* DAFTAR KARTU UNDER ERGONOMIS KHUSUS HP (BORDER-L-4 + THUMB ACTION) */}
+          <div className="md:hidden space-y-2">
+            {(() => {
+              const displayUnder = mobileUnderDivFilter === 'ALL'
+                ? filteredUnder
+                : mobileUnderDivFilter === 'SORTIR'
+                ? filteredUnder.filter((u) => u.division.startsWith('SORTIR'))
+                : filteredUnder.filter((u) => u.division === mobileUnderDivFilter);
+
+              if (displayUnder.length === 0) {
+                return (
+                  <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-6 text-center">
+                    <p className="text-xs text-slate-400 font-semibold">
+                      Belum ada regu Under {mobileUnderDivFilter !== 'ALL' ? `di Pos ${mobileUnderDivFilter}` : 'pada shift ini'}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddUnder(mobileUnderDivFilter === 'ALL' || mobileUnderDivFilter === 'SORTIR' ? 'BONGKARAN' : mobileUnderDivFilter)}
+                      className="mt-2 text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> + Tambah Under Sekarang
+                    </button>
+                  </div>
+                );
+              }
+
+              return displayUnder.map((u) => {
+                let col = {
+                  border: 'border-l-blue-600',
+                  badgeBg: 'bg-blue-50',
+                  badgeText: 'text-blue-700',
+                  label: 'Bongkaran',
+                };
+
+                if (u.division.startsWith('SORTIR')) {
+                  let sub = 'Sortir';
+                  if (u.division === 'SORTIR_BODEBEK') sub = 'Sortir Bodebek';
+                  else if (u.division === 'SORTIR_SUMATRAAN') sub = 'Sortir Sumatraan';
+                  else if (u.division === 'SORTIR_JAKARTA') sub = 'Sortir Jakarta';
+                  col = {
+                    border: 'border-l-indigo-600',
+                    badgeBg: 'bg-indigo-50',
+                    badgeText: 'text-indigo-700',
+                    label: sub,
+                  };
+                } else if (u.division === 'MUATAN') {
+                  col = {
+                    border: 'border-l-amber-500',
+                    badgeBg: 'bg-amber-50',
+                    badgeText: 'text-amber-700',
+                    label: 'Muatan',
+                  };
+                } else if (u.division === 'FIFO') {
+                  col = {
+                    border: 'border-l-emerald-500',
+                    badgeBg: 'bg-emerald-50',
+                    badgeText: 'text-emerald-700',
+                    label: 'FIFO',
+                  };
+                } else if (u.division === 'REPACK') {
+                  col = {
+                    border: 'border-l-rose-500',
+                    badgeBg: 'bg-rose-50',
+                    badgeText: 'text-rose-700',
+                    label: 'Repack',
+                  };
+                }
+
+                return (
+                  <div
+                    key={`mobile-under-${u.id}`}
+                    className={`bg-white rounded-3xl p-3 border border-slate-200/90 shadow-xs flex items-center justify-between gap-2.5 pl-3.5 border-l-4 ${col.border}`}
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${col.badgeBg} ${col.badgeText} border-slate-200/60`}>
+                          {col.label}
+                        </span>
+                        <h4 className="text-xs font-black text-slate-900 leading-tight truncate">
+                          {u.underName}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                        <span className="font-extrabold text-slate-800">{u.totalHeadcount} MP</span>
+                        <span>&bull;</span>
+                        <span>{u.regularCount} Reg + {u.additionalCount} Add</span>
+                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.2 rounded">
+                          Shift {u.shift?.name || 'Pagi'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 pt-0.5">
+                        {u.photoUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxPhoto({ url: u.photoUrl, title: `Regu: ${u.underName} (${u.division})` })}
+                            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                          >
+                            <Camera className="w-3 h-3 text-slate-500" />
+                            <span>Foto Apel</span>
+                          </button>
+                        ) : null}
+                        {u.notes && (
+                          <span className="text-[9px] text-slate-400 italic truncate max-w-[130px]">
+                            "{u.notes}"
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tombol Aksi Jempol Kanan */}
+                    <div className="shrink-0 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditUnder(u)}
+                        className="px-2.5 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                        title="Edit Under"
+                      >
+                        <Edit2 className="w-3 h-3 text-slate-500" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUnder(u.id, u.underName)}
+                        className="p-2 rounded-2xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                        title="Hapus Under"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          {/* RENDERING 5 DIVISI OPERASIONAL GUDANG (KHUSUS LAPTOP / DESKTOP: TETAP UTUH SEPERTI ASLI) */}
+          <div className="hidden md:block space-y-6">
 
             {/* DIVISI 1: BONGKARAN */}
             {(() => {

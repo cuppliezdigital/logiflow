@@ -213,8 +213,8 @@ _Laporan otomatis via Absensi Manpower Control_`;
   return (
     <div className="space-y-6">
       
-      {/* 1. BANNER INFORMASI & ALUR KERJA */}
-      <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent border-l-4 border-amber-500 p-4 rounded-r-xl">
+      {/* 1. BANNER INFORMASI & ALUR KERJA (DESKTOP: TETAP ASLI) */}
+      <div className="hidden md:block bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent border-l-4 border-amber-500 p-4 rounded-r-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ _Laporan otomatis via Absensi Manpower Control_`;
             <h2 className="text-base font-extrabold text-slate-900 mt-1 flex items-center gap-2">
               Live Tumbang, Sakit & Kendala Lapangan
             </h2>
-            <p className="hidden md:block text-xs text-slate-600 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               PIC Lapangan mencatat langsung pekerja yang drop fisik atau izin saat shift berjalan. Dilengkapi 1-klik format laporan WhatsApp ke Atasan.
             </p>
           </div>
@@ -240,38 +240,62 @@ _Laporan otomatis via Absensi Manpower Control_`;
         </div>
       </div>
 
-      {/* 2. RINGKASAN STATISTIK & TOOLBAR FILTER (3 KOLOM KOMPAK DI HP) */}
-      <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 md:gap-4">
+      {/* HEADER KHUSUS MOBILE (ROUNDED-3XL DENGAN LIVE BADGE & ACTION BUTTON) */}
+      <div className="md:hidden bg-white rounded-3xl p-3 border border-slate-200/80 shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between px-0.5">
+          <div>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Insiden Medis & Lapangan</span>
+            <h2 className="text-sm font-black text-slate-900 tracking-tight">Live Pekerja Tumbang</h2>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded-full border border-rose-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+            <span>{totalTumbang} Kasus</span>
+          </span>
+        </div>
+
+        {/* Tombol Lapor Tumbang Jempol Cepat */}
+        <button
+          type="button"
+          onClick={handleOpenAddModal}
+          className="w-full py-2 px-3 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 flex items-center justify-center gap-1.5 active:scale-98 transition-all cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>+ Lapor Pekerja Tumbang / Kendala</span>
+        </button>
+      </div>
+
+      {/* 2. RINGKASAN STATISTIK & TOOLBAR FILTER (DESKTOP) */}
+      <div className="hidden md:grid md:grid-cols-4 gap-4">
         {/* Total Insiden */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-3 md:p-4 shadow-xs">
-          <span className="text-[10px] md:text-xs font-bold text-slate-500 block uppercase">Total Kasus</span>
-          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
-            <span className="text-xl md:text-2xl font-black text-slate-900">{totalTumbang}</span>
-            <span className="text-[10px] md:text-xs font-bold text-slate-400">Org</span>
+        <div className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-rose-500 p-4 shadow-xs">
+          <span className="text-xs font-bold text-slate-500 block uppercase">Total Kasus</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-slate-900">{totalTumbang}</span>
+            <span className="text-xs font-bold text-slate-400">Org</span>
           </div>
         </div>
 
         {/* Regular Tumbang */}
-        <div className="bg-white rounded-2xl border border-blue-100 p-3 md:p-4 shadow-xs">
-          <span className="text-[10px] md:text-xs font-bold text-blue-600 block uppercase">Regular</span>
-          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
-            <span className="text-xl md:text-2xl font-black text-blue-700">{totalRegular}</span>
-            <span className="text-[10px] md:text-xs font-bold text-slate-400">MP</span>
+        <div className="bg-white rounded-2xl border border-blue-100 border-l-4 border-l-blue-600 p-4 shadow-xs">
+          <span className="text-xs font-bold text-blue-600 block uppercase">Regular</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-blue-700">{totalRegular}</span>
+            <span className="text-xs font-bold text-slate-400">MP</span>
           </div>
         </div>
 
         {/* Additional Tumbang */}
-        <div className="bg-white rounded-2xl border border-amber-100 p-3 md:p-4 shadow-xs">
-          <span className="text-[10px] md:text-xs font-bold text-amber-600 block uppercase">Additional</span>
-          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
-            <span className="text-xl md:text-2xl font-black text-amber-700">{totalAdditional}</span>
-            <span className="text-[10px] md:text-xs font-bold text-slate-400">MP</span>
+        <div className="bg-white rounded-2xl border border-amber-100 border-l-4 border-l-amber-500 p-4 shadow-xs">
+          <span className="text-xs font-bold text-amber-600 block uppercase">Additional</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-black text-amber-700">{totalAdditional}</span>
+            <span className="text-xs font-bold text-slate-400">MP</span>
           </div>
         </div>
 
-        {/* Filter Shift (Di Mobile jadi baris penuh di bawahnya) */}
-        <div className="col-span-3 md:col-span-1 bg-white rounded-2xl border border-slate-200 p-2.5 md:p-4 shadow-xs flex flex-col justify-center">
-          <span className="text-[10px] md:text-xs font-bold text-slate-500 block uppercase mb-1 md:mb-1.5">Filter Shift:</span>
+        {/* Filter Shift Desktop */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col justify-center">
+          <span className="text-xs font-bold text-slate-500 block uppercase mb-1.5">Filter Shift:</span>
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               type="button"
@@ -298,9 +322,66 @@ _Laporan otomatis via Absensi Manpower Control_`;
         </div>
       </div>
 
+      {/* 2. STATISTIK & FILTER (KHUSUS MOBILE: 3 KOLOM LEFT COLOR BAR + PILL SWITCHER) */}
+      <div className="md:hidden space-y-2.5">
+        <div className="grid grid-cols-3 gap-1.5">
+          {/* Kasus */}
+          <div className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-rose-500 shadow-xs space-y-0.5">
+            <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Kasus</span>
+            <div className="text-base font-black text-slate-900 leading-none">
+              {totalTumbang} <span className="text-[9px] font-normal text-slate-400">Org</span>
+            </div>
+            <span className="text-[8px] text-rose-600 font-bold block pt-0.5">Drop Fisik</span>
+          </div>
+
+          {/* Regular */}
+          <div className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-blue-600 shadow-xs space-y-0.5">
+            <span className="text-[9px] font-bold text-blue-500 uppercase block">Regular</span>
+            <div className="text-base font-black text-blue-700 leading-none">
+              {totalRegular} <span className="text-[9px] font-normal text-slate-400">MP</span>
+            </div>
+            <span className="text-[8px] text-slate-400 block pt-0.5">Kuota Pokok</span>
+          </div>
+
+          {/* Additional */}
+          <div className="bg-white rounded-2xl p-2.5 border border-slate-200 border-l-4 border-l-amber-500 shadow-xs space-y-0.5">
+            <span className="text-[9px] font-bold text-amber-500 uppercase block">Additional</span>
+            <div className="text-base font-black text-amber-700 leading-none">
+              {totalAdditional} <span className="text-[9px] font-normal text-slate-400">MP</span>
+            </div>
+            <span className="text-[8px] text-slate-400 block pt-0.5">Lembur/Cad</span>
+          </div>
+        </div>
+
+        {/* Filter Shift Pill Bulat Penuh */}
+        <div className="bg-slate-100 p-1 rounded-full flex items-center text-xs font-extrabold">
+          <button
+            type="button"
+            onClick={() => setShiftFilter('ALL')}
+            className={`flex-1 py-1 px-2 rounded-full text-center transition-all cursor-pointer ${
+              shiftFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            Semua Shift
+          </button>
+          {shifts.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setShiftFilter(s.id)}
+              className={`flex-1 py-1 px-2 rounded-full text-center transition-all cursor-pointer ${
+                shiftFilter === s.id ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              {s.name.includes('Pagi') ? 'Shift Pagi' : 'Shift Malam'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 3. DAFTAR FEED INSIDEN TUMBANG */}
       {filteredIncidents.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
+        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl md:rounded-3xl p-8 md:p-12 text-center">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-6 h-6" />
           </div>
@@ -310,121 +391,216 @@ _Laporan otomatis via Absensi Manpower Control_`;
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredIncidents.map((item) => {
-            const isReg = item.category === 'REGULAR';
-            const divObj = DIVISIONS.find((d) => d.key === item.division);
-            const divLabel = divObj ? divObj.label : item.division;
+        <>
+          {/* TAMPILAN DESKTOP (TETAP SEPERTI ASLI) */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredIncidents.map((item) => {
+              const isReg = item.category === 'REGULAR';
+              const divObj = DIVISIONS.find((d) => d.key === item.division);
+              const divLabel = divObj ? divObj.label : item.division;
 
-            return (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
-              >
-                <div>
-                  {/* Header Kartu: Jam & Divisi */}
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 font-extrabold text-xs px-2.5 py-1 rounded-lg">
-                        <Clock className="w-3.5 h-3.5 text-slate-500" />
-                        {item.time} WIB
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Header Kartu: Jam & Divisi */}
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 font-extrabold text-xs px-2.5 py-1 rounded-lg">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          {item.time} WIB
+                        </span>
+                        <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
+                          isReg ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {item.category}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteIncident(item.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
+                        title="Hapus laporan ini"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Info Pos & Under */}
+                    <div className="space-y-1.5 mb-3">
+                      <div className="flex items-start gap-1.5 text-xs">
+                        <span className="font-bold text-slate-500 w-24 shrink-0">Divisi Pos:</span>
+                        <span className="font-extrabold text-slate-900">{divLabel}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5 text-xs">
+                        <span className="font-bold text-slate-500 w-24 shrink-0">Under Pelapor:</span>
+                        <span className="font-extrabold text-indigo-700">{item.underName}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5 text-xs">
+                        <span className="font-bold text-slate-500 w-24 shrink-0">Vendor Asal:</span>
+                        <span className="font-extrabold text-slate-800">{item.vendorName || '-'}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5 text-xs">
+                        <span className="font-bold text-slate-500 w-24 shrink-0">Diagnosa:</span>
+                        <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          {item.type}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Catatan Kronologi */}
+                    {item.notes && (
+                      <div className="bg-slate-50 p-2.5 rounded-xl text-xs text-slate-600 border border-slate-200 mb-3">
+                        <span className="font-bold text-slate-700 block mb-0.5">Kronologi / Penanganan:</span>
+                        <p className="italic">{item.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Foto Bukti Medis */}
+                    {item.photoUrl && (
+                      <div className="mb-4">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Bukti Surat / Foto Medis:</span>
+                        <div 
+                          onClick={() => setLightboxPhoto({ url: item.photoUrl, title: `Bukti Tumbang: ${item.underName} (${item.time} WIB)` })}
+                          className="relative group rounded-xl overflow-hidden border border-slate-200 cursor-pointer h-32 bg-slate-100"
+                        >
+                          <img 
+                            src={item.photoUrl} 
+                            alt="Bukti Medis" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <ZoomIn className="w-4 h-4" />
+                            <span>Perbesar Foto</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tombol Salin Laporan WhatsApp */}
+                  <button
+                    type="button"
+                    onClick={() => handleCopyWhatsApp(item)}
+                    className={`w-full py-2 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      copiedId === item.id
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
+                    }`}
+                  >
+                    {copiedId === item.id ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Format WA Tersalin! Siap Paste</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-emerald-700" />
+                        <span>📋 Salin Format WhatsApp ke Atasan</span>
+                      </>
+                    )}
+                  </button>
+
+                </div>
+              );
+            })}
+          </div>
+
+          {/* TAMPILAN MOBILE (MD:HIDDEN) - KARTU ERGONOMIS CEPER (~85px) */}
+          <div className="md:hidden space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-wider">Feed Insiden Terkini</span>
+              <span className="text-[9px] text-slate-400">Shift Berjalan</span>
+            </div>
+
+            {filteredIncidents.map((item) => {
+              const isReg = item.category === 'REGULAR';
+              const divObj = DIVISIONS.find((d) => d.key === item.division);
+              const divLabel = divObj ? divObj.label : item.division;
+
+              return (
+                <div
+                  key={`mobile-${item.id}`}
+                  className={`bg-white rounded-3xl p-3 border border-slate-200/90 shadow-xs flex items-center justify-between gap-2.5 pl-3.5 border-l-4 ${
+                    isReg ? 'border-l-blue-600' : 'border-l-amber-500'
+                  }`}
+                >
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="bg-slate-100 text-slate-800 font-extrabold text-[10px] px-1.5 py-0.2 rounded">
+                        🕒 {item.time} WIB
                       </span>
-                      <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
-                        isReg ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      <span className={`font-extrabold text-[9px] px-1.5 py-0.2 rounded border ${
+                        isReg ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'
                       }`}>
                         {item.category}
                       </span>
+                      <span className="bg-rose-50 text-rose-700 font-bold text-[9px] px-1.5 py-0.2 rounded border border-rose-200">
+                        {item.type}
+                      </span>
                     </div>
+                    <div className="text-[10px] text-slate-600 font-semibold truncate">
+                      <strong className="text-slate-900">{divLabel}</strong> &bull; Under: <span className="text-indigo-700">{item.underName}</span> &bull; {item.vendorName || '-'}
+                    </div>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      {item.photoUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxPhoto({ url: item.photoUrl, title: `Bukti Tumbang: ${item.underName} (${item.time} WIB)` })}
+                          className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded text-[9px] font-bold cursor-pointer transition-colors"
+                        >
+                          <Camera className="w-3 h-3 text-slate-500" />
+                          <span>Foto Bukti</span>
+                        </button>
+                      ) : null}
+                      {item.notes && (
+                        <span className="text-[9px] text-slate-400 italic truncate max-w-[130px]">
+                          "{item.notes}"
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
+                  {/* Tombol Aksi Jempol Kanan */}
+                  <div className="shrink-0 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWhatsApp(item)}
+                      className={`px-2.5 py-2 rounded-2xl font-bold text-[10px] flex items-center gap-1 active:scale-95 transition-all shadow-2xs cursor-pointer ${
+                        copiedId === item.id
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      }`}
+                    >
+                      {copiedId === item.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Tersalin!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Salin WA</span>
+                        </>
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteIncident(item.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
-                      title="Hapus laporan ini"
+                      className="p-2 rounded-2xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-all cursor-pointer"
+                      title="Hapus laporan"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
-                  {/* Info Pos & Under */}
-                  <div className="space-y-1.5 mb-3">
-                    <div className="flex items-start gap-1.5 text-xs">
-                      <span className="font-bold text-slate-500 w-24 shrink-0">Divisi Pos:</span>
-                      <span className="font-extrabold text-slate-900">{divLabel}</span>
-                    </div>
-                    <div className="flex items-start gap-1.5 text-xs">
-                      <span className="font-bold text-slate-500 w-24 shrink-0">Under Pelapor:</span>
-                      <span className="font-extrabold text-indigo-700">{item.underName}</span>
-                    </div>
-                    <div className="flex items-start gap-1.5 text-xs">
-                      <span className="font-bold text-slate-500 w-24 shrink-0">Vendor Asal:</span>
-                      <span className="font-extrabold text-slate-800">{item.vendorName || '-'}</span>
-                    </div>
-                    <div className="flex items-start gap-1.5 text-xs">
-                      <span className="font-bold text-slate-500 w-24 shrink-0">Diagnosa:</span>
-                      <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                        {item.type}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Catatan Kronologi */}
-                  {item.notes && (
-                    <div className="bg-slate-50 p-2.5 rounded-xl text-xs text-slate-600 border border-slate-200 mb-3">
-                      <span className="font-bold text-slate-700 block mb-0.5">Kronologi / Penanganan:</span>
-                      <p className="italic">{item.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Foto Bukti Medis */}
-                  {item.photoUrl && (
-                    <div className="mb-4">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Bukti Surat / Foto Medis:</span>
-                      <div 
-                        onClick={() => setLightboxPhoto({ url: item.photoUrl, title: `Bukti Tumbang: ${item.underName} (${item.time} WIB)` })}
-                        className="relative group rounded-xl overflow-hidden border border-slate-200 cursor-pointer h-32 bg-slate-100"
-                      >
-                        <img 
-                          src={item.photoUrl} 
-                          alt="Bukti Medis" 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                          <ZoomIn className="w-4 h-4" />
-                          <span>Perbesar Foto</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-
-                {/* Tombol Salin Laporan WhatsApp */}
-                <button
-                  type="button"
-                  onClick={() => handleCopyWhatsApp(item)}
-                  className={`w-full py-2 px-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    copiedId === item.id
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
-                  }`}
-                >
-                  {copiedId === item.id ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Format WA Tersalin! Siap Paste</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 text-emerald-700" />
-                      <span>📋 Salin Format WhatsApp ke Atasan</span>
-                    </>
-                  )}
-                </button>
-
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* 4. MODAL FORM TAMBAH INSIDEN TUMBANG */}

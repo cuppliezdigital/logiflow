@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Warehouse,
   Palette,
-  Check
+  Check,
+  Settings
 } from 'lucide-react';
 import { AppTheme, THEME_OPTIONS } from '@/types/theme';
 
@@ -46,6 +47,7 @@ export default function TopBar({
   // State untuk popover pemilih tema
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
+  const mobileLogoRef = useRef<HTMLDivElement>(null);
 
   // Parse current selected date
   const [viewYear, setViewYear] = useState(() => {
@@ -65,13 +67,17 @@ export default function TopBar({
     }
   }, [selectedDate]);
 
-  // Click outside to close calendar
+  // Click outside to close calendar & theme popover
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
         setIsCalendarOpen(false);
       }
-      if (themeRef.current && !themeRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const clickedInsideDesktopTheme = themeRef.current && themeRef.current.contains(target);
+      const clickedInsideMobileTheme = mobileLogoRef.current && mobileLogoRef.current.contains(target);
+
+      if (!clickedInsideDesktopTheme && !clickedInsideMobileTheme) {
         setIsThemeOpen(false);
       }
     }
@@ -190,28 +196,83 @@ export default function TopBar({
     }`}>
       <div className="flex items-center justify-between gap-3">
         
-        {/* SISI KIRI: HAMBURGER DI HP & JUDUL DI LAPTOP */}
+        {/* SISI KIRI: LOGO DI HP (TAP UNTUK TEMA) & JUDUL DI LAPTOP */}
         <div className="flex items-center gap-3">
           
-          {/* Tombol Hamburger Khusus HP */}
-          <button
-            type="button"
-            onClick={onOpenMobileMenu}
-            className="md:hidden p-2 rounded-xl bg-slate-800 text-slate-200 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-            title="Buka Menu Sidebar"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {/* Logo Brand di Mobile Header - Ketuk untuk Buka Menu Tema (Opsi 1) */}
+          <div className="relative md:hidden" ref={mobileLogoRef}>
+            <button
+              type="button"
+              onClick={() => setIsThemeOpen(!isThemeOpen)}
+              className="flex items-center gap-2 text-left cursor-pointer group active:scale-95 transition-all focus:outline-none"
+              title="Ketuk logo untuk ganti tema tampilan"
+            >
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
+                <Warehouse className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-sm tracking-tight text-white group-hover:text-sky-300 transition-colors">Absensi</span>
+                  <span className="text-[9px] bg-sky-500/20 text-sky-300 font-extrabold px-1.5 py-0.2 rounded-full border border-sky-500/30">
+                    Control
+                  </span>
+                </div>
+                <p className="text-[9px] text-slate-400 font-medium flex items-center gap-1 mt-0.5 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Tap tema</span>
+                </p>
+              </div>
+            </button>
 
-          {/* Logo Brand di Mobile Header */}
-          <div className="flex items-center gap-2 md:hidden">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Warehouse className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-tight text-white">Absensi</span>
-              <p className="text-[10px] text-slate-400 font-medium">Control</p>
-            </div>
+            {/* Popover Tema Khusus Mobile - Muncul Tepat di Bawah Logo */}
+            {isThemeOpen && (
+              <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 text-xs text-white">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                  <span className="font-extrabold text-xs text-slate-300">Pilih Tema Tampilan</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsThemeOpen(false)}
+                    className="text-slate-400 hover:text-white text-xs font-bold px-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {THEME_OPTIONS.map((item) => {
+                    const isSelected = theme === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setTheme && setTheme(item.id);
+                          setIsThemeOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl transition-all text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-800 text-white border border-sky-500/50 shadow-xs'
+                            : 'hover:bg-slate-800/60 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex -space-x-1">
+                            {item.colors.map((c, i) => (
+                              <span key={i} className={`w-3.5 h-3.5 rounded-full border border-slate-900 ${c}`} />
+                            ))}
+                          </div>
+                          <div>
+                            <strong className="block text-xs font-bold leading-tight">{item.name}</strong>
+                            <span className="text-[10px] text-slate-400">{item.subtitle}</span>
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-sky-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Judul Tab Aktif di Laptop / PC */}
@@ -240,25 +301,22 @@ export default function TopBar({
           </div>
         </div>
 
-        {/* SISI KANAN: THEME SWITCHER & PEMILIH TANGGAL */}
+        {/* SISI KANAN: THEME SWITCHER (LAPTOP) & PEMILIH TANGGAL */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Tombol Pemilih Tema */}
+          {/* Tombol Pemilih Tema (Laptop / Desktop: Gear icon ⚙️ Opsi 2) */}
           {setTheme && (
-            <div className="relative" ref={themeRef}>
+            <div className="relative hidden md:block" ref={themeRef}>
               <button
                 type="button"
                 onClick={() => setIsThemeOpen(!isThemeOpen)}
-                className="flex items-center gap-1.5 bg-slate-800 md:bg-slate-50 hover:bg-slate-750 md:hover:bg-slate-100 border border-slate-700 md:border-slate-300 rounded-xl px-2.5 py-1.5 shadow-xs transition-all cursor-pointer"
-                title="Pilih Tema Warna"
+                className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl p-2 shadow-xs transition-all cursor-pointer"
+                title="Pengaturan Tema Tampilan"
               >
-                <Palette className="w-4 h-4 text-sky-400 md:text-sky-600" />
-                <span className="hidden sm:inline text-xs font-bold text-white md:text-slate-800">
-                  {theme === 'original' ? 'Asli' : theme === 'navy' ? 'Navy' : theme === 'soft' ? 'Soft' : 'Dark'}
-                </span>
+                <Settings className="w-4 h-4 text-slate-600 hover:rotate-45 transition-transform" />
               </button>
 
-              {/* Popover Menu 4 Pilihan Tema */}
+              {/* Popover Menu 4 Pilihan Tema Laptop */}
               {isThemeOpen && (
                 <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 text-xs text-white">
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
