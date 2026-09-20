@@ -537,12 +537,12 @@ export default function PlotinganTab({
         </div>
       </div>
 
-      {/* 3. TABEL DAFTAR PLOTINGAN (1 Baris per Vendor per Shift) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 3. TABEL DAFTAR PLOTINGAN (LAPTOP: TABEL PUTIH BERBORDER, MOBILE: FEED KARTU BERDIRI SENDIRI) */}
+      <div className="bg-transparent md:bg-white border-0 md:border md:border-slate-200 rounded-none md:rounded-2xl shadow-none md:shadow-sm overflow-visible md:overflow-hidden">
         
-        {/* Floating Bulk Action Bar (Saat ada baris dicentang) */}
+        {/* Floating Bulk Action Bar (Khusus Desktop saat ada baris dicentang) */}
         {selectedIds.length > 0 && (
-          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <div className="hidden md:flex bg-slate-900 text-white px-4 py-2.5 items-center justify-between animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-xs font-bold">
               <span className="w-2 h-2 rounded-full bg-blue-400"></span>
               <span>Terpilih {selectedIds.length} dari {plotingans.length} plotingan</span>
@@ -573,7 +573,7 @@ export default function PlotinganTab({
         )}
 
         {plotingans.length === 0 ? (
-          <div className="p-12 text-center">
+          <div className="p-8 sm:p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs md:shadow-none">
             <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-base font-bold text-slate-700">Belum Ada Plotingan di Tanggal Ini</p>
             <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
@@ -736,7 +736,7 @@ export default function PlotinganTab({
           </div>
 
           {/* TAMPILAN FEED KARTU MOBILE (MD:HIDDEN) - Sesuai Demo Mobile UX */}
-          <div className="md:hidden space-y-3">
+          <div className="md:hidden space-y-3 pt-2 sm:pt-0">
             {/* Mobile Bulk Selection Action Bar jika ada item yang dicentang */}
             {selectedIds.length > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center justify-between text-xs animate-in fade-in duration-150">
