@@ -223,7 +223,7 @@ _Laporan otomatis via Absensi Manpower Control_`;
             <h2 className="text-base font-extrabold text-slate-900 mt-1 flex items-center gap-2">
               Live Tumbang, Sakit & Kendala Lapangan
             </h2>
-            <p className="text-xs text-slate-600 mt-0.5">
+            <p className="hidden md:block text-xs text-slate-600 mt-0.5">
               PIC Lapangan mencatat langsung pekerja yang drop fisik atau izin saat shift berjalan. Dilengkapi 1-klik format laporan WhatsApp ke Atasan.
             </p>
           </div>
@@ -240,38 +240,38 @@ _Laporan otomatis via Absensi Manpower Control_`;
         </div>
       </div>
 
-      {/* 2. RINGKASAN STATISTIK & TOOLBAR FILTER */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* 2. RINGKASAN STATISTIK & TOOLBAR FILTER (3 KOLOM KOMPAK DI HP) */}
+      <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 md:gap-4">
         {/* Total Insiden */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
-          <span className="text-xs font-bold text-slate-500 block uppercase">Total Kasus Hari Ini</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-slate-900">{totalTumbang}</span>
-            <span className="text-xs font-bold text-slate-400">Orang Tumbang</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 md:p-4 shadow-xs">
+          <span className="text-[10px] md:text-xs font-bold text-slate-500 block uppercase">Total Kasus</span>
+          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
+            <span className="text-xl md:text-2xl font-black text-slate-900">{totalTumbang}</span>
+            <span className="text-[10px] md:text-xs font-bold text-slate-400">Org</span>
           </div>
         </div>
 
         {/* Regular Tumbang */}
-        <div className="bg-white rounded-2xl border border-blue-100 p-4 shadow-xs">
-          <span className="text-xs font-bold text-blue-600 block uppercase">Pasukan Regular Tumbang</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-blue-700">{totalRegular}</span>
-            <span className="text-xs font-bold text-slate-400">MP</span>
+        <div className="bg-white rounded-2xl border border-blue-100 p-3 md:p-4 shadow-xs">
+          <span className="text-[10px] md:text-xs font-bold text-blue-600 block uppercase">Regular</span>
+          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
+            <span className="text-xl md:text-2xl font-black text-blue-700">{totalRegular}</span>
+            <span className="text-[10px] md:text-xs font-bold text-slate-400">MP</span>
           </div>
         </div>
 
         {/* Additional Tumbang */}
-        <div className="bg-white rounded-2xl border border-amber-100 p-4 shadow-xs">
-          <span className="text-xs font-bold text-amber-600 block uppercase">Pasukan Additional Tumbang</span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-amber-700">{totalAdditional}</span>
-            <span className="text-xs font-bold text-slate-400">MP</span>
+        <div className="bg-white rounded-2xl border border-amber-100 p-3 md:p-4 shadow-xs">
+          <span className="text-[10px] md:text-xs font-bold text-amber-600 block uppercase">Additional</span>
+          <div className="flex items-baseline gap-1 md:gap-2 mt-1">
+            <span className="text-xl md:text-2xl font-black text-amber-700">{totalAdditional}</span>
+            <span className="text-[10px] md:text-xs font-bold text-slate-400">MP</span>
           </div>
         </div>
 
-        {/* Filter Shift */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col justify-center">
-          <span className="text-xs font-bold text-slate-500 block uppercase mb-1.5">Filter Shift:</span>
+        {/* Filter Shift (Di Mobile jadi baris penuh di bawahnya) */}
+        <div className="col-span-3 md:col-span-1 bg-white rounded-2xl border border-slate-200 p-2.5 md:p-4 shadow-xs flex flex-col justify-center">
+          <span className="text-[10px] md:text-xs font-bold text-slate-500 block uppercase mb-1 md:mb-1.5">Filter Shift:</span>
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               type="button"

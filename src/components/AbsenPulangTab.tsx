@@ -437,7 +437,7 @@ export default function AbsenPulangTab({
               <LogOut className="w-5 h-5 text-indigo-400" />
               Absen Pulang & Rekonsiliasi Kepulangan Shift
             </h1>
-            <p className="text-xs text-indigo-200/90 mt-0.5 max-w-2xl leading-relaxed">
+            <p className="hidden md:block text-xs text-indigo-200/90 mt-0.5 max-w-2xl leading-relaxed">
               Merekam pelepasan pulang pasukan dari dua sisi: Serah terima kepulangan Vendor & konfirmasi checkout 
               oleh PIC Lapangan di tiap divisi, tersinkronisasi otomatis dengan data pekerja tumbang.
             </p>

@@ -723,7 +723,7 @@ export default function AbsenMasukTab({
             <h1 className="text-lg md:text-xl font-black tracking-tight mt-1">
               Absen Masuk & Distribusi Pos PIC Lapangan
             </h1>
-            <p className="text-xs text-blue-100/90 mt-0.5 max-w-2xl leading-relaxed">
+            <p className="hidden md:block text-xs text-blue-100/90 mt-0.5 max-w-2xl leading-relaxed">
               Merekam kehadiran fisik serah terima pasukan dari vendor, kemudian mendistribusikannya ke 5 divisi kerja 
               (Bongkar, Muat, Sortir 3 Jalur, FIFO, Repack) yang dipegang langsung oleh Under Lapangan.
             </p>
@@ -858,8 +858,8 @@ export default function AbsenMasukTab({
       {/* ==================================================================== */}
       {activeSubTab === 'VENDOR' && (
         <div className="space-y-4">
-          {/* Petunjuk Operasional Vendor */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+          {/* Petunjuk Operasional Vendor (Disembunyikan di HP agar tidak sesak) */}
+          <div className="hidden md:flex bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-slate-600">
               <Camera className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
